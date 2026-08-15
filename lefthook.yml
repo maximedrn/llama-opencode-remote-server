@@ -3,6 +3,8 @@
 # `pre-commit` fixes what it can on the staged files, because a hook that only
 # complains is a hook developers bypass. `check` never writes: it is what CI and
 # `bun run validate` run, so a formatting or lint violation actually fails.
+rc: .lefthookrc
+
 pre-commit:
   parallel: true
   commands:

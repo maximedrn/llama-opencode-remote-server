@@ -1,0 +1,6 @@
+# Sourced by lefthook before every hook: Git clients (IDE, desktop apps) start
+# with a minimal PATH that has neither Bun nor an nvm-managed Node.
+export PATH="$HOME/.bun/bin:$PATH"
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1
+fi
