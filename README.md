@@ -120,8 +120,6 @@ bun run stack up
 #### Local-only mode
 
 Run llama.cpp locally without the reverse proxy or Cloudflare Tunnel.
-The server is only exposed on `127.0.0.1:8080`, and `bun run stack test` sends a chat
-completion to it. Set `LOCAL_PORT` in `.env` if another service already uses that port.
 
 ```bash
 bun run stack up --local
