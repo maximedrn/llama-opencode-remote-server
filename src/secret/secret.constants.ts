@@ -8,19 +8,16 @@ const Secrets = {
     prefix: "llama_",
   },
   directory: projectPath("secrets"),
-  /** Secrets a Cloudflare-fronted stack needs. */
-  edgeFiles: ["llama_api_key.txt", "cloudflare_tunnel_token.txt"],
+  /** Names Compose mounts as Docker secrets; hidden files, never committed. */
   files: {
-    apiKey: "llama_api_key.txt",
-    tunnelToken: "cloudflare_tunnel_token.txt",
+    apiKey: ".llama_api_key",
+    tunnelToken: ".cloudflare_tunnel_token",
   },
   fingerprint: {
     algorithm: "sha256",
     encoding: "hex",
     length: 16,
   },
-  /** Secrets a local-only stack needs: llama.cpp still requires its key. */
-  localFiles: ["llama_api_key.txt"],
   messages: {
     emptyTunnelToken: "Cloudflare Tunnel token cannot be empty.",
     missing: (name: string): string => `Missing secrets/${name}. Run \`init\`.`,

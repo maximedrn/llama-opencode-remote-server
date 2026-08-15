@@ -1,6 +1,7 @@
-import { EnvFile } from "@app/env/env.constants.ts";
+import { ClientFile, EnvFile } from "@app/env/env.constants.ts";
 import type { EnvApi } from "@app/env/env.interface.ts";
 import {
+  type ClientEnv,
   EnvNotInitializedError,
   type EnvRecord,
   type ModelLocation,
@@ -14,6 +15,8 @@ import { stringify } from "envfile";
 const optionalString = (name: string): Config.Config<Option.Option<string>> =>
   Config.option(Config.string(name));
 
+const isFilled = (value: string): boolean => value.trim().length > 0;
+
 /** Everything `.env` may hold, described once as a single `Config`. */
 const stackEnvConfig: Config.Config<StackEnv> = Config.all({
   backend: optionalString(EnvFile.keys.backend),
@@ -22,6 +25,23 @@ const stackEnvConfig: Config.Config<StackEnv> = Config.all({
   modelDirectory: optionalString(EnvFile.keys.modelDirectory),
   modelFile: optionalString(EnvFile.keys.modelFile),
 });
+
+/** Empty values are treated as absent: the example file ships them empty. */
+const clientEnvConfig: Config.Config<ClientEnv> = Config.all({
+  accessClientId: optionalString(ClientFile.keys.accessClientId),
+  accessClientSecret: optionalString(ClientFile.keys.accessClientSecret),
+  apiKey: optionalString(ClientFile.keys.apiKey),
+  baseUrl: optionalString(ClientFile.keys.baseUrl),
+}).pipe(
+  Config.map(
+    (values: ClientEnv): ClientEnv => ({
+      accessClientId: Option.filter(values.accessClientId, isFilled),
+      accessClientSecret: Option.filter(values.accessClientSecret, isFilled),
+      apiKey: Option.filter(values.apiKey, isFilled),
+      baseUrl: Option.filter(values.baseUrl, isFilled),
+    }),
+  ),
+);
 
 const missingKeys = (env: StackEnv): readonly string[] =>
   [
@@ -33,32 +53,44 @@ class EnvService extends Effect.Service<EnvService>()("EnvService", {
   effect: Effect.gen(function* () {
     const fileSystem: FileSystem.FileSystem = yield* FileSystem.FileSystem;
 
-    /** An absent `.env` is not an error: `init` has simply not run yet. */
-    const provider: Effect.Effect<
-      ConfigProvider.ConfigProvider,
-      PlatformError
-    > = fileSystem
-      .exists(EnvFile.path)
-      .pipe(
+    /** An absent file is not an error: the caller decides what it needs. */
+    const provider = (
+      path: string,
+    ): Effect.Effect<ConfigProvider.ConfigProvider, PlatformError> =>
+      fileSystem
+        .exists(path)
+        .pipe(
+          Effect.flatMap(
+            (
+              exists: boolean,
+            ): Effect.Effect<ConfigProvider.ConfigProvider, PlatformError> =>
+              exists
+                ? PlatformConfigProvider.fromDotEnv(path).pipe(
+                    Effect.provideService(FileSystem.FileSystem, fileSystem),
+                  )
+                : Effect.succeed(ConfigProvider.fromMap(new Map())),
+          ),
+        );
+
+    const readFile = <A>(
+      path: string,
+      config: Config.Config<A>,
+    ): Effect.Effect<A, PlatformError> =>
+      provider(path).pipe(
         Effect.flatMap(
-          (
-            exists: boolean,
-          ): Effect.Effect<ConfigProvider.ConfigProvider, PlatformError> =>
-            exists
-              ? PlatformConfigProvider.fromDotEnv(EnvFile.path).pipe(
-                  Effect.provideService(FileSystem.FileSystem, fileSystem),
-                )
-              : Effect.succeed(ConfigProvider.fromMap(new Map())),
+          (source: ConfigProvider.ConfigProvider): Effect.Effect<A> =>
+            Effect.withConfigProvider(Effect.orDie(config), source),
         ),
       );
 
-    const read: Effect.Effect<StackEnv, PlatformError> = provider.pipe(
-      Effect.flatMap(
-        (
-          source: ConfigProvider.ConfigProvider,
-        ): Effect.Effect<StackEnv, PlatformError> =>
-          Effect.withConfigProvider(Effect.orDie(stackEnvConfig), source),
-      ),
+    const read: Effect.Effect<StackEnv, PlatformError> = readFile(
+      EnvFile.path,
+      stackEnvConfig,
+    );
+
+    const readClient: Effect.Effect<ClientEnv, PlatformError> = readFile(
+      ClientFile.path,
+      clientEnvConfig,
     );
 
     const requireModel: Effect.Effect<
@@ -83,7 +115,7 @@ class EnvService extends Effect.Service<EnvService>()("EnvService", {
     const write = (values: EnvRecord): Effect.Effect<void, PlatformError> =>
       fileSystem.writeFileString(EnvFile.path, stringify(values));
 
-    const api: EnvApi = { read, requireModel, write };
+    const api: EnvApi = { read, readClient, requireModel, write };
     return api;
   }),
 }) {}

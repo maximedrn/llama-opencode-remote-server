@@ -29,8 +29,8 @@ jobs:
       - name: Create validation-only local files
         run: |
           mkdir -p secrets
-          printf 'dummy\n' > secrets/llama_api_key.txt
-          printf 'dummy\n' > secrets/cloudflare_tunnel_token.txt
+          printf 'dummy\n' > secrets/.llama_api_key
+          printf 'dummy\n' > secrets/.cloudflare_tunnel_token
           cp .env.example .env
 
       - name: Compose validation

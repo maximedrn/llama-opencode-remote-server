@@ -2,7 +2,7 @@ import { HardwareBackends } from "@app/backend/backend.constants";
 import type { Backend } from "@app/backend/backend.types.ts";
 import { Docker } from "@app/docker/docker.constants.ts";
 import { makeStackEnv } from "@app/env/env.factory.ts";
-import type { StackEnv } from "@app/env/env.types";
+import type { ClientEnv, StackEnv } from "@app/env/env.types";
 import { Host } from "@app/host/host.constants.ts";
 import { makeModelSource } from "@app/model/model.factory.ts";
 import type { ModelSource, ResolvedModel } from "@app/model/model.types.ts";
@@ -22,9 +22,10 @@ import {
   LlamaRequestError,
   LlamaResponseError,
 } from "@app/stack/stack.types.ts";
-import { makeCompletionRequest } from "@app/stack/stack.utils.ts";
+import type { SmokeTarget } from "@app/stack/stack.utils.ts";
+import { makeSmokeTarget } from "@app/stack/stack.utils.ts";
 import { Prompt } from "@effect/cli";
-import { HttpClientRequest, HttpClientResponse } from "@effect/platform";
+import { HttpClientResponse } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import type { QuitException } from "@effect/platform/Terminal";
 import { Config, Console, Effect, Option, Redacted, Schema } from "effect";
@@ -162,8 +163,11 @@ const preflight = (
     if (!(yield* dependencies.fileSystem.exists(modelPath))) {
       return yield* new ModelFileMissingError({ path: modelPath });
     }
+    // A local-only stack still needs the API key, but never the tunnel token.
     yield* dependencies.secrets.assertPresent(
-      local ? Secrets.localFiles : Secrets.edgeFiles,
+      local
+        ? [Secrets.files.apiKey]
+        : [Secrets.files.apiKey, Secrets.files.tunnelToken],
     );
     yield* dependencies.backends.assertDevices(backend);
     yield* dependencies.docker.compose(backend, Docker.verbs.config, { local });
@@ -180,36 +184,29 @@ const completionResponseSchema = Schema.Struct({
 
 type CompletionResponse = Schema.Schema.Type<typeof completionResponseSchema>;
 
-/** Smoke test against the loopback port, no curl or PowerShell needed. */
+/**
+ * Smoke test, no curl or PowerShell needed. The endpoint and credentials come
+ * from `clients/client.env`, so this exercises whatever a client is pointed
+ * at: guessing the mode from the files on disk only ever sent the request to
+ * whatever else happened to listen on the loopback port.
+ */
 const smokeTest = (
   dependencies: StackDependencies,
 ): Effect.Effect<void, SmokeTestError> =>
   Effect.gen(function* () {
-    const apiKey: Redacted.Redacted<string> = yield* dependencies.secrets.read(
-      Secrets.files.apiKey,
-    );
+    const client: ClientEnv = yield* dependencies.env.readClient;
     const values: StackEnv = yield* dependencies.env.read;
-    const endpoint: string = Stack.local.endpoint(
-      Option.getOrElse(values.localPort, (): string => Stack.local.defaultPort),
+    const alias: string = Option.getOrElse(
+      values.modelAlias,
+      (): string => Stack.smoke.fallbackAlias,
     );
-    const request: HttpClientRequest.HttpClientRequest =
-      yield* HttpClientRequest.post(endpoint).pipe(
-        HttpClientRequest.bearerToken(apiKey),
-        HttpClientRequest.bodyJson(
-          makeCompletionRequest(
-            Option.getOrElse(
-              values.modelAlias,
-              (): string => Stack.local.fallbackAlias,
-            ),
-          ),
-        ),
-      );
+    const target: SmokeTarget = yield* makeSmokeTarget(client, alias);
     const response: HttpClientResponse.HttpClientResponse =
-      yield* dependencies.httpClient.execute(request);
-    if (response.status >= Stack.local.errorStatus) {
+      yield* dependencies.httpClient.execute(target.request);
+    if (response.status >= Stack.smoke.errorStatus) {
       const body: string = yield* response.text;
       return yield* new LlamaRequestError({
-        body: body.slice(0, Stack.local.snippetLength),
+        body: body.slice(0, Stack.smoke.snippetLength),
         status: response.status,
       });
     }
@@ -220,8 +217,8 @@ const smokeTest = (
         Effect.mapError(
           (cause: Error): LlamaResponseError =>
             new LlamaResponseError({
-              endpoint,
-              reason: cause.message.slice(0, Stack.local.snippetLength),
+              endpoint: target.endpoint,
+              reason: cause.message.slice(0, Stack.smoke.snippetLength),
             }),
         ),
       );
@@ -232,7 +229,7 @@ const rotateApiKey = (
   dependencies: StackDependencies,
 ): Effect.Effect<void, PlatformError> =>
   dependencies.secrets.rotateApiKey.pipe(
-    Effect.flatMap((key) =>
+    Effect.flatMap((key: Redacted.Redacted<string>) =>
       Console.log(Stack.messages.rotated).pipe(
         Effect.andThen(
           Console.log(

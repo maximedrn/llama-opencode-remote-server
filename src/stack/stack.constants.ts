@@ -1,5 +1,8 @@
 import { Docker } from "@app/docker/docker.constants.ts";
 
+/** Strips a trailing slash from LLAMA_BASE_URL before appending the path. */
+const trailingSlash: RegExp = /\/+$/;
+
 /** CLI surface: command names, descriptions and the messages they print. */
 const Stack = {
   cli: {
@@ -18,7 +21,7 @@ const Stack = {
     modelUrl: "Direct download link to a model file",
     preflight: "Check Docker, the model, the secrets and the Compose files",
     rotateKey: "Generate a new Llama API key",
-    test: "Send a chat completion to the loopback port",
+    test: "Send a chat completion using clients/client.env",
   },
   /**
    * Compose lifecycle commands differ only by their Compose arguments; each one
@@ -56,19 +59,6 @@ const Stack = {
       name: "logs",
     },
   ],
-  local: {
-    defaultPort: "8080",
-    /** Only the loopback interface is ever addressed. */
-    endpoint: (port: string): string =>
-      `http://127.0.0.1:${port}/v1/chat/completions`,
-    errorStatus: 400,
-    fallbackAlias: "model",
-    maxTokens: 32,
-    prompt: "Reply with exactly OK",
-    role: "user",
-    /** Longest error body echoed back; upstreams may answer with a full page. */
-    snippetLength: 200,
-  },
   messages: {
     failure: (reason: string): string => `Error: ${reason}`,
     fingerprint: (value: string): string =>
@@ -83,8 +73,8 @@ const Stack = {
     nextStep: "Next: bun run stack preflight",
     notLlamaServer: (endpoint: string, reason: string): string =>
       `${endpoint} did not answer with an OpenAI chat completion (${reason}). ` +
-      "Another service may be listening on that port; set LOCAL_PORT in .env " +
-      "and restart the stack.",
+      "Another service may be listening there; check LLAMA_BASE_URL in " +
+      "clients/client.env.",
     preflightOk: (backend: string): string =>
       `Preflight OK for backend=${backend}.`,
     requestFailed: (status: number, body: string): string =>
@@ -97,6 +87,24 @@ const Stack = {
       "Windows NVIDIA mode requires Docker Desktop with the WSL2 backend and " +
       "current NVIDIA drivers.",
   },
+  /** The smoke test, against whatever `clients/client.env` points at. */
+  smoke: {
+    /** HTTP status from which on the answer is a failure, not a completion. */
+    errorStatus: 400,
+    fallbackAlias: "model",
+    /** Cloudflare Access service token headers, stripped again by Nginx. */
+    headers: {
+      accessClientId: "CF-Access-Client-Id",
+      accessClientSecret: "CF-Access-Client-Secret",
+    },
+    maxTokens: 32,
+    /** Chat completion path, appended to LLAMA_BASE_URL. */
+    path: "/v1/chat/completions",
+    prompt: "Reply with exactly OK",
+    role: "user",
+    /** Longest error body echoed back; upstreams may answer with a full page. */
+    snippetLength: 200,
+  },
 } as const;
 
-export { Stack };
+export { Stack, trailingSlash };

@@ -1,4 +1,5 @@
 import type { Backend } from "@app/backend/backend.types.ts";
+import { ClientFile } from "@app/env/env.constants.ts";
 import { Stack } from "@app/stack/stack.constants.ts";
 import type { Option } from "effect";
 import { Data } from "effect";
@@ -33,4 +34,20 @@ class LlamaResponseError extends Data.TaggedError("LlamaResponseError")<{
   }
 }
 
-export { type InitInput, LlamaRequestError, LlamaResponseError };
+/** `client.env` is filled in by hand, so `init` cannot vouch for it. */
+class MissingClientConfigError extends Data.TaggedError(
+  "MissingClientConfigError",
+)<{
+  readonly variable: string;
+}> {
+  override get message(): string {
+    return ClientFile.messages.missing(this.variable);
+  }
+}
+
+export {
+  type InitInput,
+  LlamaRequestError,
+  LlamaResponseError,
+  MissingClientConfigError,
+};

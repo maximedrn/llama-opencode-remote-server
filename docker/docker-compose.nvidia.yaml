@@ -58,7 +58,7 @@ services:
       - -m
       - /models/${MODEL_FILE:?Set MODEL_FILE in .env}
       - --alias
-      - ${LLAMA_ALIAS:-qwen3.8-27b}
+      - ${LLAMA_ALIAS:-llama}
       - --host
       - 0.0.0.0
       - --port

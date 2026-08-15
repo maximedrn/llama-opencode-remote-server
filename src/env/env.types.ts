@@ -13,6 +13,14 @@ interface StackEnv {
   readonly modelFile: Option.Option<string>;
 }
 
+/** What `clients/client.env` holds; the Access pair stays empty locally. */
+interface ClientEnv {
+  readonly accessClientId: Option.Option<string>;
+  readonly accessClientSecret: Option.Option<string>;
+  readonly apiKey: Option.Option<string>;
+  readonly baseUrl: Option.Option<string>;
+}
+
 /** The subset `preflight` and Compose cannot work without. */
 interface ModelLocation {
   readonly directory: string;
@@ -30,6 +38,7 @@ class EnvNotInitializedError extends Data.TaggedError(
 }
 
 export {
+  type ClientEnv,
   EnvNotInitializedError,
   type EnvRecord,
   type ModelLocation,

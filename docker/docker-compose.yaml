@@ -71,6 +71,6 @@ networks:
 
 secrets:
   llama_api_key:
-    file: ./secrets/llama_api_key.txt
+    file: ./secrets/.llama_api_key
   cloudflare_tunnel_token:
-    file: ./secrets/cloudflare_tunnel_token.txt
+    file: ./secrets/.cloudflare_tunnel_token

@@ -5,10 +5,10 @@
     "llama": {
       "models": {
         "default": {
-          "name": "llama.cpp remote"
+          "name": "llama.cpp"
         }
       },
-      "name": "llama.cpp (remote)",
+      "name": "llama.cpp",
       "npm": "@ai-sdk/openai-compatible",
       "options": {
         "apiKey": "{env:LLAMA_API_KEY}",

@@ -1,5 +1,25 @@
 import { projectPath } from "@app/project/project.utils.ts";
 
+/**
+ * The credentials a client uses to reach the stack. `test` reads them, so it
+ * exercises the very same endpoint and headers as OpenCode does.
+ */
+const ClientFile = {
+  keys: {
+    accessClientId: "CLOUDFLARE_ACCESS_CLIENT_ID",
+    accessClientSecret: "CLOUDFLARE_ACCESS_CLIENT_SECRET",
+    apiKey: "LLAMA_API_KEY",
+    baseUrl: "LLAMA_BASE_URL",
+  },
+  messages: {
+    missing: (variable: string): string =>
+      `clients/client.env has no ${variable}. Copy client.env.example and ` +
+      "fill it in: LLAMA_BASE_URL is the loopback port locally, or the " +
+      "Cloudflare hostname remotely.",
+  },
+  path: projectPath("clients/client.env"),
+} as const;
+
 /** Everything written to, or read from, the Compose `.env` file. */
 const EnvFile = {
   /**
@@ -45,4 +65,4 @@ const EnvFile = {
   ],
 } as const;
 
-export { EnvFile };
+export { ClientFile, EnvFile };

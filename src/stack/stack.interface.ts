@@ -26,11 +26,11 @@ import type {
   InitInput,
   LlamaRequestError,
   LlamaResponseError,
+  MissingClientConfigError,
 } from "@app/stack/stack.types.ts";
 import type { Prompt } from "@effect/cli";
 import type {
   FileSystem,
-  HttpBody,
   HttpClient,
   HttpClientError,
   Path,
@@ -74,10 +74,10 @@ type PreflightError =
   | PlatformError;
 
 type SmokeTestError =
-  | HttpBody.HttpBodyError
   | HttpClientError.HttpClientError
   | LlamaRequestError
   | LlamaResponseError
+  | MissingClientConfigError
   | PlatformError;
 
 interface StackApi {
@@ -93,6 +93,7 @@ interface StackApi {
     requested: Option.Option<Backend>,
   ) => Effect.Effect<Backend, BackendResolutionError>;
   readonly rotateKey: Effect.Effect<void, PlatformError>;
+  /** Calls whatever `clients/client.env` points at, as a client would. */
   readonly test: Effect.Effect<void, SmokeTestError>;
 }
 
