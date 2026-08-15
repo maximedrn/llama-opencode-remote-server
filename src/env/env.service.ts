@@ -17,6 +17,24 @@ const optionalString = (name: string): Config.Config<Option.Option<string>> =>
 
 const isFilled = (value: string): boolean => value.trim().length > 0;
 
+/**
+ * `KEY=""` means absent, not empty: both example files ship keys blank, and an
+ * empty value would otherwise reach Compose or the smoke test as a real one.
+ */
+const withoutBlanks = <A extends Record<string, Option.Option<string>>>(
+  values: A,
+): A =>
+  Object.fromEntries(
+    Object.entries(values).map(
+      (
+        entry: [string, Option.Option<string>],
+      ): [string, Option.Option<string>] => [
+        entry[0],
+        Option.filter(entry[1], isFilled),
+      ],
+    ),
+  ) as A;
+
 /** Everything `.env` may hold, described once as a single `Config`. */
 const stackEnvConfig: Config.Config<StackEnv> = Config.all({
   backend: optionalString(EnvFile.keys.backend),
@@ -24,24 +42,14 @@ const stackEnvConfig: Config.Config<StackEnv> = Config.all({
   modelAlias: optionalString(EnvFile.keys.modelAlias),
   modelDirectory: optionalString(EnvFile.keys.modelDirectory),
   modelFile: optionalString(EnvFile.keys.modelFile),
-});
+}).pipe(Config.map(withoutBlanks));
 
-/** Empty values are treated as absent: the example file ships them empty. */
 const clientEnvConfig: Config.Config<ClientEnv> = Config.all({
   accessClientId: optionalString(ClientFile.keys.accessClientId),
   accessClientSecret: optionalString(ClientFile.keys.accessClientSecret),
   apiKey: optionalString(ClientFile.keys.apiKey),
   baseUrl: optionalString(ClientFile.keys.baseUrl),
-}).pipe(
-  Config.map(
-    (values: ClientEnv): ClientEnv => ({
-      accessClientId: Option.filter(values.accessClientId, isFilled),
-      accessClientSecret: Option.filter(values.accessClientSecret, isFilled),
-      apiKey: Option.filter(values.apiKey, isFilled),
-      baseUrl: Option.filter(values.baseUrl, isFilled),
-    }),
-  ),
-);
+}).pipe(Config.map(withoutBlanks));
 
 const missingKeys = (env: StackEnv): readonly string[] =>
   [

@@ -9,7 +9,6 @@ const Docker = {
     subcommand: "compose",
   },
   flags: {
-    envFile: "--env-file",
     file: "-f",
     profile: "--profile",
     projectDirectory: "--project-directory",
@@ -31,6 +30,11 @@ const Docker = {
   },
   verbs: {
     config: ["config", "--quiet"],
+    /**
+     * Compose bind mounts a `file:` secret, so the container sees the new key
+     * as soon as it is written; only llama.cpp has to read it again.
+     */
+    restartLlama: ["restart", "llama"],
   },
 } as const;
 

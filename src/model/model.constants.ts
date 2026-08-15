@@ -32,6 +32,9 @@ const Model = {
     sourceRequired:
       "Pass exactly one model source: --model-file, --model-url or " +
       "--hf-repository.",
+    unnamedUrl:
+      "the URL does not end with a .gguf file name. Link the file itself, or " +
+      "download it first and pass --model-file.",
   },
   /** Everything matching the pattern; shard `00001` sorts first. */
   searchPattern: (pattern: string): string => `**/${pattern}`,

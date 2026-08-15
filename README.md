@@ -266,4 +266,4 @@ bun run stack test
 | `status`     | Show container status                    |
 | `logs`       | Follow llama.cpp logs                    |
 | `test`       | Test the configured client               |
-| `rotate-key` | Generate and apply a new API key         |
+| `rotate-key` | Rotate the API key and restart llama.cpp |

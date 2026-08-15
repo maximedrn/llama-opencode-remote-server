@@ -9,6 +9,7 @@ import { EnvService } from "@app/env/env.service.ts";
 import type { StackEnv } from "@app/env/env.types.ts";
 import { HostService } from "@app/host/host.service.ts";
 import { ModelService } from "@app/model/model.service.ts";
+import type { CommandFailedError } from "@app/process/process.types.ts";
 import { SecretService } from "@app/secret/secret.service.ts";
 import {
   initialize,
@@ -26,6 +27,7 @@ import type {
 import type { InitInput } from "@app/stack/stack.types.ts";
 import type { Prompt } from "@effect/cli";
 import { FileSystem, HttpClient, Path } from "@effect/platform";
+import type { PlatformError } from "@effect/platform/Error";
 import { Effect, Option } from "effect";
 
 class StackService extends Effect.Service<StackService>()("StackService", {
@@ -81,7 +83,11 @@ class StackService extends Effect.Service<StackService>()("StackService", {
       ): Effect.Effect<void, PreflightError> =>
         preflight(dependencies, backend, local),
       resolveBackend,
-      rotateKey: rotateApiKey(dependencies),
+      rotateKey: (
+        backend: Backend,
+        local: boolean,
+      ): Effect.Effect<void, CommandFailedError | PlatformError> =>
+        rotateApiKey(dependencies, backend, local),
       test: smokeTest(dependencies),
     };
     return api;

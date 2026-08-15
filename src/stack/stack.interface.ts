@@ -92,7 +92,11 @@ interface StackApi {
   readonly resolveBackend: (
     requested: Option.Option<Backend>,
   ) => Effect.Effect<Backend, BackendResolutionError>;
-  readonly rotateKey: Effect.Effect<void, PlatformError>;
+  /** Writes a new key, then restarts llama.cpp so it actually loads it. */
+  readonly rotateKey: (
+    backend: Backend,
+    local: boolean,
+  ) => Effect.Effect<void, CommandFailedError | PlatformError>;
   /** Calls whatever `clients/client.env` points at, as a client would. */
   readonly test: Effect.Effect<void, SmokeTestError>;
 }

@@ -1,8 +1,6 @@
 import { Data } from "effect";
 
 interface ComposeOptions {
-  /** Overrides the env file Compose interpolates, e.g. `.env.example` in CI. */
-  readonly envFile?: string;
   /** Adds the override publishing 127.0.0.1:8080. */
   readonly local?: boolean;
 }

@@ -76,7 +76,14 @@ const resolveDownloadUrl = (
   source: DownloadUrlSource,
 ): Effect.Effect<ResolvedModel, ModelDownloadError | PlatformError> =>
   Effect.gen(function* () {
-    const file: string = fileNameFromUrl(source.url);
+    const named: Option.Option<string> = fileNameFromUrl(source.url);
+    if (Option.isNone(named)) {
+      return yield* new ModelDownloadError({
+        reason: Model.messages.unnamedUrl,
+        url: source.url,
+      });
+    }
+    const file: string = named.value;
     const target: string = dependencies.path.join(directory, file);
     yield* dependencies.fileSystem.makeDirectory(directory, {
       recursive: true,

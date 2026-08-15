@@ -9,16 +9,7 @@ import { ProcessService } from "@app/process/process.service.ts";
 import type { CommandFailedError } from "@app/process/process.types.ts";
 import { Project } from "@app/project/project.constants.ts";
 import type { PlatformError } from "@effect/platform/Error";
-import { Effect, Option, Predicate } from "effect";
-
-const envFileArgs = (envFile: string | undefined): readonly string[] =>
-  Option.fromNullable(envFile).pipe(
-    Option.filter(Predicate.isNotNullable),
-    Option.match({
-      onNone: (): readonly string[] => [],
-      onSome: (file: string): readonly string[] => [Docker.flags.envFile, file],
-    }),
-  );
+import { Effect } from "effect";
 
 /**
  * The project directory is pinned to the repository root so the `./nginx` and
@@ -34,7 +25,6 @@ const composeArgs = (
   ...(options.local === true
     ? []
     : [Docker.flags.profile, Docker.profiles.edge]),
-  ...envFileArgs(options.envFile),
   Docker.flags.file,
   Docker.compose.baseFile,
   Docker.flags.file,

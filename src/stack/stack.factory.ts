@@ -179,9 +179,16 @@ const rotateKeyCommand: Command.Command<
   "rotate-key",
   StackService,
   LifecycleError,
-  EmptyConfig
-> = Command.make("rotate-key", {}, () =>
-  Effect.flatMap(StackService, (stack: StackService) => stack.rotateKey),
+  StackTargetConfig
+> = Command.make(
+  "rotate-key",
+  { backend: backendOption, local: localOption },
+  (config: StackTargetConfig) =>
+    Effect.flatMap(StackService, (stack: StackService) =>
+      withBackend(config.backend, (target: Backend) =>
+        stack.rotateKey(target, config.local),
+      ),
+    ),
 ).pipe(Command.withDescription(Stack.descriptions.rotateKey));
 
 /** Every failure any subcommand can raise. */

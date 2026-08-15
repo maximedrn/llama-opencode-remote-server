@@ -20,7 +20,7 @@ const Stack = {
     modelFile: "Path to a model file already on this host",
     modelUrl: "Direct download link to a model file",
     preflight: "Check Docker, the model, the secrets and the Compose files",
-    rotateKey: "Generate a new Llama API key",
+    rotateKey: "Generate a new Llama API key, then restart llama.cpp",
     test: "Send a chat completion using clients/client.env",
   },
   /**
@@ -79,8 +79,11 @@ const Stack = {
       `Preflight OK for backend=${backend}.`,
     requestFailed: (status: number, body: string): string =>
       `HTTP ${status}: ${body}`,
-    rotated:
-      "Llama API key rotated. Restart the stack and update trusted clients.",
+    restartingLlama:
+      "Restarting llama.cpp: it only reads its API key at startup.",
+    rotated: "Llama API key rotated.",
+    rotatedClients:
+      "Update LLAMA_API_KEY in clients/client.env and every trusted client.",
     rotatedFingerprint: (value: string): string => `New fingerprint: ${value}`,
     secretsWritten: "Secrets written under ./secrets and ignored by Git.",
     windowsNvidia:
@@ -91,7 +94,10 @@ const Stack = {
   smoke: {
     /** HTTP status from which on the answer is a failure, not a completion. */
     errorStatus: 400,
-    fallbackAlias: "model",
+    /** Mirrors `${LLAMA_ALIAS:-llama}` in the Compose files: a blank alias in
+     * `.env` makes llama.cpp serve the model under that name, and asking for
+     * anything else answers a model-not-found error. */
+    fallbackAlias: "llama",
     /** Cloudflare Access service token headers, stripped again by Nginx. */
     headers: {
       accessClientId: "CF-Access-Client-Id",

@@ -8,6 +8,7 @@ import { makeModelSource } from "@app/model/model.factory.ts";
 import type { ModelSource, ResolvedModel } from "@app/model/model.types.ts";
 import { ModelFileMissingError } from "@app/model/model.types.ts";
 import { defaultModelDirectory } from "@app/model/model.utils.ts";
+import type { CommandFailedError } from "@app/process/process.types.ts";
 import { Secrets } from "@app/secret/secret.constants.ts";
 import { EmptyTunnelTokenError } from "@app/secret/secret.types.ts";
 import { Stack } from "@app/stack/stack.constants.ts";
@@ -225,21 +226,27 @@ const smokeTest = (
     yield* Console.log(completion.choices[0].message.content);
   });
 
+/**
+ * llama.cpp reads its key once, at startup, so writing the file is only half
+ * the rotation: the server keeps honouring the old key until it restarts.
+ */
 const rotateApiKey = (
   dependencies: StackDependencies,
-): Effect.Effect<void, PlatformError> =>
-  dependencies.secrets.rotateApiKey.pipe(
-    Effect.flatMap((key: Redacted.Redacted<string>) =>
-      Console.log(Stack.messages.rotated).pipe(
-        Effect.andThen(
-          Console.log(
-            Stack.messages.rotatedFingerprint(
-              dependencies.secrets.fingerprint(key),
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
+  backend: Backend,
+  local: boolean,
+): Effect.Effect<void, CommandFailedError | PlatformError> =>
+  Effect.gen(function* () {
+    const key: Redacted.Redacted<string> =
+      yield* dependencies.secrets.rotateApiKey;
+    yield* Console.log(Stack.messages.rotated);
+    yield* Console.log(
+      Stack.messages.rotatedFingerprint(dependencies.secrets.fingerprint(key)),
+    );
+    yield* Console.log(Stack.messages.restartingLlama);
+    yield* dependencies.docker.compose(backend, Docker.verbs.restartLlama, {
+      local,
+    });
+    yield* Console.log(Stack.messages.rotatedClients);
+  });
 
 export { initialize, preflight, rotateApiKey, smokeTest };
