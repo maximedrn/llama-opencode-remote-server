@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llama/default",
+  "provider": {
+    "llama": {
+      "models": {
+        "default": {
+          "name": "llama.cpp local"
+        }
+      },
+      "name": "llama.cpp (local)",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "apiKey": "{env:LLAMA_API_KEY}",
+        "baseURL": "{env:LLAMA_BASE_URL}/v1"
+      }
+    }
+  }
+}

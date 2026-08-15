@@ -141,5 +141,3 @@ bun run stack up --local
 | `logs`       | Follow the llama.cpp logs                                   |
 | `test`       | Send a chat completion to the loopback port                 |
 | `rotate-key` | Generate and apply a new API key                            |
-
-Every command accepts `--backend cpu|nvidia|amd` (defaulting to `BACKEND` from `.env`), and every command except `test` and `rotate-key` accepts `--local`. `test` only answers when the stack runs with `--local`, since that is the only mode publishing a port on the host.
