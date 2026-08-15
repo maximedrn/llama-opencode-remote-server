@@ -1,0 +1,27 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "llama/qwen3.8-27b",
+  "provider": {
+    "llama": {
+      "models": {
+        "qwen3.8-27b": {
+          "limit": {
+            "context": 262144,
+            "output": 32768
+          },
+          "name": "Qwen 3.8 27B Q5_K_XL"
+        }
+      },
+      "name": "Qwen 3.8 27B Q5_K_XL",
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "apiKey": "{env:LLAMA_API_KEY}",
+        "baseURL": "{env:LLAMA_REMOTE_BASE_URL}/v1",
+        "headers": {
+          "CF-Access-Client-Id": "{env:CLOUDFLARE_ACCESS_CLIENT_ID}",
+          "CF-Access-Client-Secret": "{env:CLOUDFLARE_ACCESS_CLIENT_SECRET}"
+        }
+      }
+    }
+  }
+}

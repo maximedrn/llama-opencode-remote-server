@@ -1,0 +1,37 @@
+language js
+
+// Project rules that have no built-in Biome equivalent.
+//
+// - `ReturnType<...>` hides the real contract behind an inferred type; every
+//   signature in this repository declares its return type explicitly, so the
+//   utility is never needed and its uses always signal a missing named type.
+// - Destructuring hides where a value comes from and multiplies the names a
+//   reader has to track; every property is read explicitly in this codebase.
+// - Comparing against `null` / `undefined` bypasses the Effect vocabulary.
+//   `Option.fromNullable`, `Predicate.isNotUndefined` and `??` express the same
+//   intent while staying composable.
+or {
+  JsObjectBindingPattern() as $node where {
+    register_diagnostic(span=$node, message="Object destructuring is forbidden: read the properties explicitly.", severity="error")
+  },
+  JsArrayBindingPattern() as $node where {
+    register_diagnostic(span=$node, message="Array destructuring is forbidden: index explicitly.", severity="error")
+  },
+  `ReturnType<$_>` as $node where {
+    register_diagnostic(span=$node, message="ReturnType<> is forbidden: declare an explicit named type instead.", severity="error")
+  },
+  `$left === $right` as $node where {
+    $right <: or {
+      `null`,
+      `undefined`
+    },
+    register_diagnostic(span=$node, message="Comparing to null/undefined is forbidden: use Option, Predicate or ??.", severity="error")
+  },
+  `$left !== $right` as $node where {
+    $right <: or {
+      `null`,
+      `undefined`
+    },
+    register_diagnostic(span=$node, message="Comparing to null/undefined is forbidden: use Option, Predicate or ??.", severity="error")
+  }
+}

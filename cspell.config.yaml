@@ -1,0 +1,40 @@
+$schema: https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json
+version: "0.2"
+language: en
+ignorePaths:
+  - bun.lock
+  - LICENSE
+  - node_modules
+words:
+  - biomejs
+  - bunx
+  - cloudflared
+  - CSPRNG
+  - cuda
+  - envfile
+  - Filenaming
+  - ggml
+  - gguf
+  - healthcheck
+  - huggingface
+  - keepalive
+  - lefthook
+  - loglevel
+  - memlock
+  - mlock
+  - mmap
+  - mmproj
+  - ngram
+  - nodelay
+  - nosniff
+  - opencode
+  - pids
+  - qwen
+  - Qwik
+  - rocm
+  - seccomp
+  - Somes
+  - tmpfs
+  - ubatch
+  - ulimits
+  - unsloth

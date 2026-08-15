@@ -1,0 +1,217 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
+  "assist": {
+    "actions": {
+      "recommended": true,
+      "source": {
+        "organizeImports": "on",
+        "useSortedAttributes": "on",
+        "useSortedInterfaceMembers": "on",
+        "useSortedKeys": "on",
+        "useSortedProperties": "on"
+      }
+    },
+    "enabled": true
+  },
+  "css": {
+    "assist": {
+      "enabled": true
+    },
+    "formatter": {
+      "enabled": true,
+      "quoteStyle": "double"
+    },
+    "linter": {
+      "enabled": true
+    },
+    "parser": {
+      "tailwindDirectives": false
+    }
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/coverage",
+      "!**/dist",
+      "!**/data",
+      "!**/drizzle"
+    ]
+  },
+  "formatter": {
+    "attributePosition": "multiline",
+    "bracketSameLine": false,
+    "bracketSpacing": true,
+    "enabled": true,
+    "formatWithErrors": false,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 80,
+    "trailingNewline": true,
+    "useEditorconfig": false
+  },
+  "html": {
+    "assist": {
+      "enabled": true
+    },
+    "formatter": {
+      "enabled": true,
+      "indentWidth": 2
+    },
+    "linter": {
+      "enabled": true
+    }
+  },
+  "javascript": {
+    "formatter": {
+      "arrowParentheses": "always",
+      "jsxQuoteStyle": "double",
+      "quoteProperties": "asNeeded",
+      "quoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all"
+    },
+    "globals": ["Bun"],
+    "linter": {
+      "enabled": true
+    },
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    }
+  },
+  "json": {
+    "assist": {
+      "enabled": true
+    },
+    "formatter": {
+      "enabled": true
+    },
+    "linter": {
+      "enabled": true
+    }
+  },
+  "linter": {
+    "domains": {
+      "project": "all",
+      "test": "all",
+      "types": "none"
+    },
+    "enabled": true,
+    "rules": {
+      "a11y": "error",
+      "complexity": {
+        "noExcessiveLinesPerFunction": {
+          "level": "error",
+          "options": {
+            "maxLines": 60,
+            "skipBlankLines": true,
+            "skipIifes": false
+          }
+        },
+        "useMaxParams": {
+          "level": "error",
+          "options": {
+            "max": 6
+          }
+        }
+      },
+      "correctness": {
+        "noNodejsModules": "error",
+        "noUndeclaredDependencies": "off",
+        "noUnresolvedImports": "off",
+        "useHookAtTopLevel": "off",
+        "useImportExtensions": "off",
+        "useQwikValidLexicalScope": "off",
+        "useUniqueElementIds": "off"
+      },
+      "nursery": {
+        "noRestrictedDependencies": "off",
+        "useBaseline": "off",
+        "useExplicitType": "error",
+        "useThisInClassMethods": "off"
+      },
+      "performance": {
+        "noNamespaceImport": "off"
+      },
+      "preset": "all",
+      "security": "error",
+      "style": {
+        "noDefaultExport": "error",
+        "noExcessiveClassesPerFile": "off",
+        "noExcessiveLinesPerFile": {
+          "level": "error",
+          "options": {
+            "maxLines": 300,
+            "skipBlankLines": true
+          }
+        },
+        "noMagicNumbers": "off",
+        "noNestedTernary": "off",
+        "noProcessEnv": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["./**", "../**"],
+                "message": "Relative imports are forbidden: use the @app/* or @test/* aliases."
+              }
+            ]
+          }
+        },
+        "noTernary": "off",
+        "useBlockStatements": "off",
+        "useComponentExportOnlyModules": "off",
+        "useConsistentTypeDefinitions": "off",
+        "useExportsLast": "error",
+        "useImportType": "off",
+        "useNamingConvention": {
+          "level": "error",
+          "options": {
+            "conventions": [
+              {
+                "formats": ["camelCase", "PascalCase"],
+                "selector": {
+                  "kind": "const"
+                }
+              },
+              {
+                "formats": ["camelCase", "PascalCase"],
+                "selector": {
+                  "kind": "objectLiteralProperty"
+                }
+              }
+            ]
+          }
+        },
+        "useVueMultiWordComponentNames": "off"
+      },
+      "suspicious": "error"
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useFilenamingConvention": {
+              "level": "error",
+              "options": {
+                "filenameCases": ["kebab-case", "export"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "plugins": ["./.biome/rules.grit"],
+  "vcs": {
+    "clientKind": "git",
+    "enabled": true,
+    "useIgnoreFile": true
+  }
+}

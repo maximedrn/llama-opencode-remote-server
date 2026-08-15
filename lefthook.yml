@@ -1,0 +1,39 @@
+# Code integrity gates.
+#
+# `pre-commit` fixes what it can on the staged files, because a hook that only
+# complains is a hook developers bypass. `check` never writes: it is what CI and
+# `bun run validate` run, so a formatting or lint violation actually fails.
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.{ts,json,jsonc}"
+      run: bunx biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    typecheck:
+      glob: "*.ts"
+      run: bun run typecheck
+    spell:
+      run: bun run spell
+
+# Read-only gate over the whole repository, untracked files included.
+check:
+  parallel: true
+  commands:
+    lint:
+      run: bun run lint
+    typecheck:
+      run: bun run typecheck
+    spell:
+      run: bun run spell
+
+# Compose needs a Docker daemon, so it only gates pushes.
+pre-push:
+  parallel: true
+  commands:
+    compose-cpu:
+      run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.cpu.yaml config --quiet
+    compose-nvidia:
+      run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.nvidia.yaml config --quiet
+    compose-amd:
+      run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.amd.yaml config --quiet

@@ -1,0 +1,36 @@
+{
+  "dependencies": {
+    "@effect/cli": "0.77.0",
+    "@effect/platform": "0.97.1",
+    "@effect/platform-bun": "0.91.2",
+    "effect": "3.22.1",
+    "envfile": "7.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.8",
+    "@types/bun": "1.3.14",
+    "cspell": "10.0.1",
+    "lefthook": "2.1.10",
+    "typescript": "7.0.2"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "name": "llama-opencode-remote-server",
+  "private": true,
+  "scripts": {
+    "format": "biome format --write .",
+    "format:check": "biome format",
+    "lint": "biome check",
+    "lint:fix": "biome check --write .",
+    "prepare": "lefthook install",
+    "spell": "cspell \"**\" --no-progress",
+    "spell:words": "cspell \"**\" --no-progress --unique --words-only",
+    "stack": "bun run src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "validate": "lefthook run check",
+    "validate:compose": "lefthook run pre-push --all-files"
+  },
+  "type": "module",
+  "version": "1.0.0"
+}

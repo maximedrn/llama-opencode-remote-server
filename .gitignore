@@ -1,0 +1,17 @@
+# Environment files.
+.env
+client.env
+
+# Secrets.
+secrets/*
+!secrets/.gitkeep
+
+# Node modules.
+node_modules/
+
+# Log files.
+*.log
+
+# Operating system files.
+.DS_Store
+Thumbs.db

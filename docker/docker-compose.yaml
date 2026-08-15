@@ -1,0 +1,76 @@
+name: llama-opencode-remote-server
+
+services:
+  proxy:
+    profiles:
+      - edge
+    image: ${PROXY_IMAGE:-nginxinc/nginx-unprivileged:latest}
+    restart: unless-stopped
+    depends_on:
+      llama:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /var/cache/nginx:size=64m,mode=0755
+    volumes:
+      - type: bind
+        source: ./nginx/nginx.conf
+        target: /etc/nginx/nginx.conf
+        read_only: true
+    healthcheck:
+      test:
+        - "CMD"
+        - "nginx"
+        - "-t"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - backend
+      - edge
+
+  cloudflared:
+    profiles:
+      - edge
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
+    restart: unless-stopped
+    depends_on:
+      proxy:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    secrets:
+      - cloudflare_tunnel_token
+    command:
+      - tunnel
+      - --no-autoupdate
+      - --loglevel
+      - info
+      - run
+      - --token-file
+      - /run/secrets/cloudflare_tunnel_token
+    networks:
+      - edge
+
+networks:
+  backend:
+    internal: true
+  edge: {}
+
+secrets:
+  llama_api_key:
+    file: ./secrets/llama_api_key.txt
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare_tunnel_token.txt

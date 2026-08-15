@@ -1,0 +1,7 @@
+# Local-only override: llama.cpp is published on the loopback interface and the
+# edge profile (reverse proxy plus Cloudflare Tunnel) stays stopped.
+# Do not change this to 0.0.0.0.
+services:
+  llama:
+    ports:
+      - "127.0.0.1:${LOCAL_PORT:-8080}:8080"

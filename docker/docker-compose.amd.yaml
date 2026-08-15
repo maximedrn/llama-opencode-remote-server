@@ -1,0 +1,92 @@
+services:
+  llama:
+    image: ${LLAMA_AMD_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-rocm}
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    pids_limit: 2048
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    security_opt:
+      - no-new-privileges:true
+      - seccomp=unconfined
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    shm_size: "8gb"
+    tmpfs:
+      - /tmp:size=1g,mode=1777
+    volumes:
+      - type: bind
+        source: ${MODEL_DIRECTORY:?Set MODEL_DIRECTORY in .env}
+        target: /models
+        read_only: true
+    secrets:
+      - llama_api_key
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-fsS"
+        - "http://127.0.0.1:8080/health"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 180s
+    networks:
+      - backend
+    command:
+      - --device
+      - ${AMD_DEVICE:-ROCm0}
+      - --split-mode
+      - none
+      - --fit
+      - "on"
+      - --fit-target
+      - ${FIT_TARGET:-768}
+      - --fit-ctx
+      - ${CTX_SIZE:-262144}
+      - -m
+      - /models/${MODEL_FILE:?Set MODEL_FILE in .env}
+      - --alias
+      - ${LLAMA_ALIAS:-qwen3.8-27b}
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - ${CTX_SIZE:-262144}
+      - --parallel
+      - "1"
+      - --load-mode
+      - ${LOAD_MODE:-mmap+mlock}
+      - --flash-attn
+      - ${FLASH_ATTN:-on}
+      - --cache-type-k
+      - ${CACHE_TYPE_K:-q8_0}
+      - --cache-type-v
+      - ${CACHE_TYPE_V:-q8_0}
+      - --jinja
+      - --cache-prompt
+      - --spec-type
+      - ngram-simple
+      - --spec-draft-n-max
+      - ${SPEC_DRAFT_N_MAX:-64}
+      - --batch-size
+      - ${BATCH_SIZE:-2048}
+      - --ubatch-size
+      - ${UBATCH_SIZE:-512}
+      - --threads
+      - ${THREADS:-8}
+      - --threads-batch
+      - ${THREADS_BATCH:-16}
+      - --no-mmproj
+      - --no-ui
+      - --metrics
+      - --api-key-file
+      - /run/secrets/llama_api_key
