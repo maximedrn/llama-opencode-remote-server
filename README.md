@@ -29,10 +29,6 @@ Cross-platform Docker stack for serving any GGUF model through llama.cpp.
     - [8. Configure the client](#8-configure-the-client)
     - [9. Test](#9-test)
   - [Commands](#commands)
-  - [Client machines](#client-machines)
-  - [Custom Compose file](#custom-compose-file)
-  - [Keep-alive front](#keep-alive-front)
-  - [Troubleshooting](#troubleshooting)
 
 ## Compatibility
 
@@ -259,101 +255,19 @@ bun run stack test
 
 ## Commands
 
-| Command      | Description                                                     |
-| ------------ | --------------------------------------------------------------- |
-| `init`       | Configure the backend, model and secrets (`--force` to overwrite) |
-| `preflight`  | Validate the stack                                              |
-| `pull`       | Pull container images                                           |
-| `up`         | Start the stack                                                 |
-| `down`       | Stop the stack                                                  |
-| `restart`    | Restart the stack                                               |
-| `status`     | State and health of every service (`--json` for raw Compose JSON) |
+| Command      | Description                                                           |
+| ------------ | --------------------------------------------------------------------- |
+| `init`       | Configure the backend, model and secrets (`--force` to overwrite)     |
+| `preflight`  | Validate the stack                                                    |
+| `pull`       | Pull container images                                                 |
+| `up`         | Start the stack                                                       |
+| `down`       | Stop the stack                                                        |
+| `restart`    | Restart the stack                                                     |
+| `status`     | State and health of every service (`--json` for raw Compose JSON)     |
 | `logs`       | Follow one service (`--service llama\|heartbeat\|proxy\|cloudflared`) |
-| `test`       | Send a chat completion with `clients/client.env`                |
-| `health`     | One-token completion proving the server answers and the key works |
-| `models`     | Local `.gguf` files, or what the server serves on a client host  |
-| `doctor`     | Every check with a suggested fix (`--client`, `--json`)          |
-| `rotate-key` | Rotate the API key, restart llama.cpp and wait for it to be healthy |
-| `uninstall`  | Stop everything, then offer to remove `.env` and `secrets/`      |
-
-Every Compose-driving command takes `--backend`, `--local`, `--compose-file`
-and `--keepalive`.
-
-## Client machines
-
-`test`, `health`, `models` and `doctor --client` only need
-`clients/client.env`: no `.env`, no Docker, no model and no secret on that
-machine. Clone the repository, run `bun install`, fill in `clients/client.env`
-and check the endpoint the same way the server host does:
-
-```bash
-bun run stack doctor --client
-bun run stack health
-bun run stack models
-```
-
-`models` lists the local `.gguf` files when `.env` points at a model
-directory, and falls back to the `/v1/models` answer of the configured
-endpoint otherwise.
-
-## Custom Compose file
-
-`--compose-file` replaces `docker/docker-compose.<backend>.yaml`, the file that
-defines llama.cpp itself. The base file — reverse proxy, Cloudflare Tunnel,
-networks and secrets — is always layered under it, and so is the keep-alive
-front when it is enabled:
-
-```bash
-bun run stack up --compose-file docker/docker-compose.rig.yaml
-```
-
-Set `COMPOSE_OVERRIDE_FILE` in `.env` to apply it to every command without
-passing the flag. The variable is deliberately not called `COMPOSE_FILE`:
-Docker Compose reads that one itself and would replace the whole file set.
-
-## Keep-alive front
-
-llama.cpp only writes to the response once it has a token to send. On a long
-prompt some builds stay silent for minutes — and every hop in between
-(Cloudflare, Nginx, the client SDK) counts that silence as an idle connection
-and closes the session mid-request.
-
-`--keepalive` layers an optional service between the reverse proxy and
-llama.cpp. Clients connect to it, it relays the request untouched, and while
-the upstream says nothing it writes an SSE comment (`: keep-alive`) every
-`HEARTBEAT_KEEPALIVE_MS`. Those bytes keep every hop awake and are ignored by
-any SSE client.
-
-```bash
-bun run stack init --keepalive     # remembered in .env as KEEPALIVE
-bun run stack up --keepalive       # or per command
-bun run stack logs --service heartbeat
-```
-
-It is a Bun-compiled binary (`src/heartbeat`, built by
-`docker/heartbeat.Dockerfile`) that logs one logfmt line per relayed request,
-per keep-alive burst, and for the llama.cpp build it reads from `/props` at
-startup. Its healthcheck (`heartbeat check`) probes llama.cpp *through* the
-front, so an unhealthy container means either llama.cpp is down or the front
-stopped relaying; `rotate-key` waits on it before reporting success.
-
-Leave it off when llama.cpp already keeps the connection alive on its own: the
-extra hop is pure latency then, and nothing else changes — Nginx points
-straight at llama.cpp again.
-
-## Troubleshooting
-
-| Symptom                                                    | Likely cause                   | Fix                                                                 |
-| ---------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
-| `Docker is not installed or the daemon is not running.`     | Docker Desktop stopped         | Start Docker, then `bun run stack doctor`.                          |
-| `Model file not found`                                     | model missing or moved         | Re-run `init`, or copy the `.gguf` into `MODEL_DIRECTORY`.           |
-| `Missing secrets/...`                                      | secrets wiped                  | Re-run `init`.                                                       |
-| `... rejected the API key (401/403)`                        | wrong key or Access token      | Check `LLAMA_API_KEY` and the Access token in `clients/client.env`.  |
-| `... did not answer`                                        | stack down, or wrong base URL  | `bun run stack up`, then verify `LLAMA_BASE_URL`.                    |
-| `llama.cpp is not healthy after the restart`                | model still loading            | Watch `bun run stack logs --service llama`, then `status`.           |
-| Session dies mid-answer on a long prompt                    | llama.cpp silent while it works | Turn the keep-alive front on: `bun run stack up --keepalive`.       |
-| `AMD ROCm ... / NVIDIA CUDA ...`                            | unsupported host               | Use `--backend cpu` on that machine.                                 |
-| `Run \`init\` first: .env is missing ...`                     | server command on a client host | Use the client commands, or run `init` on the server.               |
-
-`bun run stack doctor` prints all of the above at once, each failing line with
-the fix that clears it.
+| `test`       | Send a chat completion with `clients/client.env`                      |
+| `health`     | One-token completion proving the server answers and the key works     |
+| `models`     | Local `.gguf` files, or what the server serves on a client host       |
+| `doctor`     | Every check with a suggested fix (`--client`, `--json`)               |
+| `rotate-key` | Rotate the API key, restart llama.cpp and wait for it to be healthy   |
+| `uninstall`  | Stop everything, then offer to remove `.env` and `secrets/`           |
