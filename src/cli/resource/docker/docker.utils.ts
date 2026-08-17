@@ -4,8 +4,9 @@ import type {
   ComposeOptions,
   ComposeStatusEntry,
 } from "@app/cli/resource/docker/docker.types.ts";
+import { composeStatusSchema } from "@app/cli/resource/docker/docker.types.ts";
 import { Project } from "@app/cli/system/project/project.constants.ts";
-import { Option } from "effect";
+import { Option, Schema } from "effect";
 
 /** A custom file replaces the shipped llama.cpp definition, nothing else. */
 const llamaFile = (backend: Backend, options: ComposeOptions): string =>
@@ -43,30 +44,22 @@ const composeArgs = (
   ...(options.local === true ? [Docker.flags.file, localFile(options)] : []),
 ];
 
-const readString = (record: Record<string, unknown>, key: string): string => {
-  const value: unknown = record[key];
-  return typeof value === "string" ? value : "";
-};
+type ComposeStatusFields = Schema.Schema.Type<typeof composeStatusSchema>;
 
-const toStatusEntry = (entry: unknown): readonly ComposeStatusEntry[] => {
-  if (typeof entry !== "object" || Option.isNone(Option.fromNullable(entry))) {
-    return [];
-  }
-  const record: Record<string, unknown> = entry as Record<string, unknown>;
-  const service: string = readString(record, Docker.psFields.service);
-  return service.length === 0
-    ? []
-    : [
-        {
-          health: readString(record, Docker.psFields.health),
-          service,
-          state: readString(record, Docker.psFields.state),
-        },
-      ];
-};
+const decodeStatusEntry: (
+  entry: unknown,
+) => Option.Option<ComposeStatusFields> =
+  Schema.decodeUnknownOption(composeStatusSchema);
 
-const parseJson = (text: string): Option.Option<unknown> =>
-  Option.liftThrowable((value: string): unknown => JSON.parse(value))(text);
+const toStatusEntry = (entry: unknown): readonly ComposeStatusEntry[] =>
+  Option.match(decodeStatusEntry(entry), {
+    onNone: (): readonly ComposeStatusEntry[] => [],
+    onSome: (parsed: ComposeStatusFields): readonly ComposeStatusEntry[] => [
+      { health: parsed.Health, service: parsed.Service, state: parsed.State },
+    ],
+  });
+
+const parseJson = Schema.decodeUnknownOption(Schema.parseJson());
 
 /**
  * Compose has shipped both shapes for `ps --format json`: a JSON array, and one

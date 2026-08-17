@@ -4,74 +4,88 @@ import type {
   ProbeResult,
 } from "@app/heartbeat/heartbeat.types.ts";
 import type { Server } from "bun";
-import { Effect, Option, Runtime } from "effect";
+import {
+  Duration,
+  Effect,
+  Option,
+  Predicate,
+  Runtime,
+  Schedule,
+  Schema,
+  Stream,
+} from "effect";
 
-/** What `reader.read()` resolves to; the DOM types name it awkwardly. */
-type ReadChunk =
-  | { readonly done: false; readonly value: Uint8Array }
-  | { readonly done: true; readonly value?: undefined };
+/** The runtime of the fiber that started the server, so the request handlers
+ * — plain async functions — log through the same logger and annotations. */
+type Host = Runtime.Runtime<never>;
 
-/** Logs from inside the request handler, which is plain async by nature. */
-type Log = (effect: Effect.Effect<void>) => void;
+/** A completion asking for a stream is the only one worth holding open. */
+const streamRequestSchema = Schema.parseJson(
+  Schema.Struct({ stream: Schema.Boolean }),
+);
 
 const shorten = (reason: string): string =>
   reason.slice(0, Heartbeat.reasonLength);
 
 const describe = (cause: unknown): string =>
-  shorten(cause instanceof Error ? cause.message : String(cause));
+  shorten(Predicate.isError(cause) ? cause.message : String(cause));
+
+const log = (host: Host, effect: Effect.Effect<void>): void => {
+  Runtime.runFork(host)(effect);
+};
 
 const isStream = (response: Response): boolean =>
   (response.headers.get(Heartbeat.headers.contentType) ?? "").includes(
     Heartbeat.streamContentType,
   );
 
-/**
- * The whole point of this process: while llama.cpp says nothing — it is busy
- * processing a long prompt — an SSE comment goes out every `keepAliveMs`, so
- * the tunnel, the proxy and the client SDK all keep the connection open.
- */
-const keepAliveStream = (
-  source: ReadableStream<Uint8Array>,
-  config: HeartbeatConfig,
-  log: Log,
-): ReadableStream<Uint8Array> => {
-  const comment: Uint8Array = new TextEncoder().encode(
-    Heartbeat.keepAliveComment,
-  );
-  const reader: ReadableStreamDefaultReader<Uint8Array> = source.getReader();
-  let timer: Timer | undefined;
-  return new ReadableStream<Uint8Array>({
-    cancel: (reason: unknown): Promise<void> => {
-      clearInterval(timer);
-      return reader.cancel(reason);
-    },
-    start: (controller: ReadableStreamDefaultController<Uint8Array>): void => {
-      timer = setInterval((): void => {
-        controller.enqueue(comment);
-        log(Effect.logDebug(Heartbeat.messages.keepAlive));
-      }, config.keepAliveMs);
-      const pump = async (): Promise<void> => {
-        for (;;) {
-          // biome-ignore lint/performance/noAwaitInLoops: draining a stream is sequential by definition.
-          const chunk: ReadChunk = await reader.read();
-          if (chunk.done) break;
-          if (Option.isSome(Option.fromNullable(chunk.value))) {
-            controller.enqueue(chunk.value);
-          }
-        }
-      };
-      pump()
-        .then((): void => {
-          controller.close();
-        })
-        .catch((cause: unknown): void => {
-          controller.error(cause);
-        })
-        .finally((): void => {
-          clearInterval(timer);
-        });
+const wantsStream = (body: string): boolean =>
+  Option.match(Schema.decodeUnknownOption(streamRequestSchema)(body), {
+    onNone: (): boolean => false,
+    onSome: (request: { readonly stream: boolean }): boolean => request.stream,
+  });
+
+const bytes = (source: ReadableStream<Uint8Array>): Stream.Stream<Uint8Array> =>
+  Stream.fromReadableStream({
+    evaluate: (): ReadableStream<Uint8Array> => source,
+    onError: (): never => {
+      throw new Error(Heartbeat.messages.upstreamFailed);
     },
   });
+
+/**
+ * The whole point of this process: while llama.cpp says nothing — it is busy
+ * processing a long prompt — an SSE comment goes out on a fixed beat, so the
+ * tunnel, the proxy and the client SDK all keep the connection open.
+ */
+const comments = (config: HeartbeatConfig): Stream.Stream<Uint8Array> =>
+  Stream.repeatValue(new TextEncoder().encode(Heartbeat.keepAliveComment)).pipe(
+    Stream.schedule(Schedule.spaced(Duration.millis(config.keepAliveMs))),
+    Stream.tap(
+      (): Effect.Effect<void> => Effect.logDebug(Heartbeat.messages.keepAlive),
+    ),
+  );
+
+/**
+ * The answer, with the beat merged in. `haltStrategy: "left"` is what ends it:
+ * the comments stop as soon as llama.cpp has said everything it had to say.
+ */
+const withKeepAlive = (
+  host: Host,
+  config: HeartbeatConfig,
+  spoken: Stream.Stream<Uint8Array>,
+): ReadableStream<Uint8Array> =>
+  Runtime.runSync(host)(
+    Stream.toReadableStreamEffect(
+      Stream.merge(spoken, comments(config), { haltStrategy: "left" }),
+    ),
+  );
+
+/** Hop-by-hop headers belong to one connection, never to the next one. */
+const forwardHeaders = (request: Request): Headers => {
+  const headers: Headers = new Headers(request.headers);
+  for (const name of Heartbeat.hopByHopHeaders) headers.delete(name);
+  return headers;
 };
 
 const relayHeaders = (response: Response): Headers => {
@@ -89,26 +103,6 @@ const relayHeaders = (response: Response): Headers => {
   return headers;
 };
 
-/** Hop-by-hop headers belong to one connection, never to the next one. */
-const forwardHeaders = (request: Request): Headers => {
-  const headers: Headers = new Headers(request.headers);
-  for (const name of Heartbeat.hopByHopHeaders) headers.delete(name);
-  return headers;
-};
-
-/** Only a completion asking for a stream can be held open with comments. */
-const wantsStream = (body: string): boolean =>
-  Option.match(
-    Option.liftThrowable((value: string): unknown => JSON.parse(value))(body),
-    {
-      onNone: (): boolean => false,
-      onSome: (parsed: unknown): boolean =>
-        typeof parsed === "object" &&
-        Option.isSome(Option.fromNullable(parsed)) &&
-        (parsed as Record<string, unknown>)[Heartbeat.streamField] === true,
-    },
-  );
-
 const streamHeaders = (): Headers => {
   const headers: Headers = new Headers();
   headers.set(Heartbeat.headers.contentType, Heartbeat.streamContentType);
@@ -123,62 +117,66 @@ const streamHeaders = (): Headers => {
   return headers;
 };
 
+/** The upstream answer, once it finally arrives, as a stream of its bytes. */
+const pending = (upstream: Promise<Response>): Stream.Stream<Uint8Array> =>
+  Stream.unwrap(
+    Effect.promise((): Promise<Response> => upstream).pipe(
+      Effect.map(
+        (response: Response): Stream.Stream<Uint8Array> =>
+          Option.match(Option.fromNullable(response.body), {
+            onNone: (): Stream.Stream<Uint8Array> => Stream.empty,
+            onSome: bytes,
+          }),
+      ),
+    ),
+  );
+
 /**
  * llama.cpp does not flush the response head until it has something to say, so
  * a stalled request cannot be recognised from the answer: the front commits to
- * the SSE answer itself, writes comments while it waits, and pipes the real
- * body in as soon as it arrives.
+ * the SSE answer itself, beats while it waits, and pipes the real body in as
+ * soon as it arrives.
  */
-const committedStream = (
+const commit = (
+  host: Host,
   config: HeartbeatConfig,
+  request: Request,
   upstream: Promise<Response>,
-  log: Log,
-): ReadableStream<Uint8Array> => {
-  const comment: Uint8Array = new TextEncoder().encode(
-    Heartbeat.keepAliveComment,
+): Response => {
+  log(
+    host,
+    Effect.logInfo(Heartbeat.messages.committed).pipe(
+      Effect.annotateLogs({
+        method: request.method,
+        path: new URL(request.url).pathname,
+      }),
+    ),
   );
-  let timer: Timer | undefined;
-  return new ReadableStream<Uint8Array>({
-    start: (controller: ReadableStreamDefaultController<Uint8Array>): void => {
-      timer = setInterval((): void => {
-        controller.enqueue(comment);
-        log(Effect.logDebug(Heartbeat.messages.keepAlive));
-      }, config.keepAliveMs);
-      upstream
-        .then(async (response: Response): Promise<void> => {
-          clearInterval(timer);
-          const body: Option.Option<ReadableStream<Uint8Array>> =
-            Option.fromNullable(response.body);
-          if (Option.isNone(body)) return;
-          const reader: ReadableStreamDefaultReader<Uint8Array> =
-            body.value.getReader();
-          for (;;) {
-            // biome-ignore lint/performance/noAwaitInLoops: draining a stream is sequential by definition.
-            const chunk: ReadChunk = await reader.read();
-            if (chunk.done) break;
-            if (Option.isSome(Option.fromNullable(chunk.value))) {
-              controller.enqueue(chunk.value);
-            }
-          }
-        })
-        .then((): void => {
-          controller.close();
-        })
-        .catch((cause: unknown): void => {
-          controller.error(cause);
-        })
-        .finally((): void => {
-          clearInterval(timer);
-        });
-    },
+  return new Response(withKeepAlive(host, config, pending(upstream)), {
+    headers: streamHeaders(),
+    status: Heartbeat.upstreamStatus.ok,
   });
 };
 
-/** Everything is relayed untouched; only a streaming body is wrapped. */
+const answer = (
+  host: Host,
+  config: HeartbeatConfig,
+  response: Response,
+): Response =>
+  Option.match(Option.fromNullable(response.body), {
+    onNone: (): Response => response,
+    onSome: (body: ReadableStream<Uint8Array>): Response =>
+      new Response(
+        isStream(response) ? withKeepAlive(host, config, bytes(body)) : body,
+        { headers: relayHeaders(response), status: response.status },
+      ),
+  });
+
+/** Everything is relayed untouched; only a streaming body is kept warm. */
 const relay = async (
+  host: Host,
   config: HeartbeatConfig,
   request: Request,
-  log: Log,
 ): Promise<Response> => {
   const target: URL = new URL(request.url);
   const started: number = Date.now();
@@ -192,23 +190,18 @@ const relay = async (
       redirect: "manual",
     },
   );
-  const answered: Response | undefined = await Promise.race([
-    upstream,
-    Bun.sleep(config.keepAliveMs).then((): undefined => undefined),
-  ]);
-  if (Option.isNone(Option.fromNullable(answered)) && wantsStream(body)) {
-    log(
-      Effect.logInfo(Heartbeat.messages.committed).pipe(
-        Effect.annotateLogs({ method: request.method, path: target.pathname }),
-      ),
-    );
-    return new Response(committedStream(config, upstream, log), {
-      headers: streamHeaders(),
-      status: Heartbeat.upstreamStatus.ok,
-    });
+  const early: Option.Option<Response> = Option.fromNullable(
+    await Promise.race([
+      upstream,
+      Bun.sleep(config.keepAliveMs).then((): undefined => undefined),
+    ]),
+  );
+  if (Option.isNone(early) && wantsStream(body)) {
+    return commit(host, config, request, upstream);
   }
-  const response: Response = answered ?? (await upstream);
+  const response: Response = await upstream;
   log(
+    host,
     Effect.logInfo(Heartbeat.messages.proxied).pipe(
       Effect.annotateLogs({
         latencyMs: Date.now() - started,
@@ -219,26 +212,18 @@ const relay = async (
       }),
     ),
   );
-  return Option.match(Option.fromNullable(response.body), {
-    onNone: (): Response => response,
-    onSome: (answerBody: ReadableStream<Uint8Array>): Response =>
-      new Response(
-        isStream(response)
-          ? keepAliveStream(answerBody, config, log)
-          : answerBody,
-        { headers: relayHeaders(response), status: response.status },
-      ),
-  });
+  return answer(host, config, response);
 };
 
 /** A refused upstream is answered, and logged, as a plain bad gateway. */
 const handle = (
+  host: Host,
   config: HeartbeatConfig,
   request: Request,
-  log: Log,
 ): Promise<Response> =>
-  relay(config, request, log).catch((cause: unknown): Response => {
+  relay(host, config, request).catch((cause: unknown): Response => {
     log(
+      host,
       Effect.logError(Heartbeat.messages.upstreamFailed).pipe(
         Effect.annotateLogs({ reason: describe(cause) }),
       ),
@@ -318,13 +303,10 @@ const reportBuild = (config: HeartbeatConfig): Effect.Effect<void> =>
 /** Serves until the container stops; the fiber never completes on its own. */
 const serve = (config: HeartbeatConfig): Effect.Effect<never> =>
   Effect.gen(function* () {
-    const runtime: Runtime.Runtime<never> = yield* Effect.runtime<never>();
-    const log: Log = (effect: Effect.Effect<void>): void => {
-      Runtime.runFork(runtime)(effect);
-    };
+    const host: Host = yield* Effect.runtime<never>();
     const server: Server<unknown> = Bun.serve({
       fetch: (request: Request): Promise<Response> =>
-        handle(config, request, log),
+        handle(host, config, request),
       idleTimeout: Heartbeat.defaults.idleTimeoutSeconds,
       port: config.port,
     });
@@ -339,4 +321,4 @@ const serve = (config: HeartbeatConfig): Effect.Effect<never> =>
     return yield* Effect.never;
   });
 
-export { keepAliveStream, probe, serve };
+export { probe, serve, wantsStream };

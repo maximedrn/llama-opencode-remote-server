@@ -31,12 +31,6 @@ const Docker = {
   profiles: {
     edge: "edge",
   },
-  /** Field names of `docker compose ps --format json`. */
-  psFields: {
-    health: "Health",
-    service: "Service",
-    state: "State",
-  },
   services: {
     cloudflared: "cloudflared",
     heartbeat: "heartbeat",

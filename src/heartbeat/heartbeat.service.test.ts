@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
-import { probe, serve } from "@app/heartbeat/heartbeat.service.ts";
+import { probe, serve, wantsStream } from "@app/heartbeat/heartbeat.service.ts";
 import type {
   HeartbeatConfig,
   ProbeResult,
@@ -11,25 +11,39 @@ import { Duration, Effect, Fiber, Option, Schedule } from "effect";
 const keepAliveMs: number = 50;
 const token: string = 'data: {"token":"OK"}\n\n';
 
+/** The answer llama.cpp only starts writing once it has thought long enough. */
+const lateTokens = (silenceMs: number): ReadableStream<Uint8Array> => {
+  let timer: Timer | undefined;
+  return new ReadableStream<Uint8Array>({
+    // A client that drops the answer cancels the body: nothing may be enqueued
+    // afterwards, which is what a real server has to cope with too.
+    cancel: (): void => {
+      clearTimeout(timer);
+    },
+    start: (controller: ReadableStreamDefaultController<Uint8Array>): void => {
+      timer = setTimeout((): void => {
+        controller.enqueue(new TextEncoder().encode(token));
+        controller.close();
+      }, silenceMs);
+    },
+  });
+};
+
 /** A llama.cpp that thinks for a while before writing its first token. */
 const silentUpstream = (silenceMs: number): Server<unknown> =>
   Bun.serve({
-    fetch: (request: Request): Response =>
-      new URL(request.url).pathname === Heartbeat.paths.health
-        ? Response.json({ status: "ok" })
-        : new Response(
-            new ReadableStream<Uint8Array>({
-              start: (
-                controller: ReadableStreamDefaultController<Uint8Array>,
-              ): void => {
-                setTimeout((): void => {
-                  controller.enqueue(new TextEncoder().encode(token));
-                  controller.close();
-                }, silenceMs);
-              },
-            }),
-            { headers: { "content-type": Heartbeat.streamContentType } },
-          ),
+    fetch: (request: Request): Response => {
+      const path: string = new URL(request.url).pathname;
+      if (path === Heartbeat.paths.health)
+        return Response.json({ status: "ok" });
+      if (path === Heartbeat.paths.props) {
+        // biome-ignore lint/style/useNamingConvention: llama.cpp wire format.
+        return Response.json({ build_info: "b0000-test" });
+      }
+      return new Response(lateTokens(silenceMs), {
+        headers: { "content-type": Heartbeat.streamContentType },
+      });
+    },
     port: 0,
   });
 
@@ -140,5 +154,30 @@ describe("keep-alive front", () => {
       },
     );
     expect(status).toBe(Heartbeat.upstreamStatus.badGateway);
+  });
+});
+
+/**
+ * Only a streamed completion can be answered before llama.cpp has spoken: for
+ * anything else the front has to wait, since it cannot invent a status code.
+ */
+describe("wantsStream", () => {
+  test("recognizes a streamed completion", () => {
+    expect(wantsStream(JSON.stringify({ messages: [], stream: true }))).toBe(
+      true,
+    );
+  });
+
+  test("leaves a plain completion alone", () => {
+    expect(wantsStream(JSON.stringify({ messages: [], stream: false }))).toBe(
+      false,
+    );
+    expect(wantsStream(JSON.stringify({ messages: [] }))).toBe(false);
+  });
+
+  test("a body that is not a JSON object is never streamed", () => {
+    expect(wantsStream("")).toBe(false);
+    expect(wantsStream("not-json")).toBe(false);
+    expect(wantsStream(JSON.stringify({ stream: "true" }))).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { Data } from "effect";
+import { Data, Schema } from "effect";
 
 interface ComposeOptions {
   /** Adds the keep-alive front between the proxy and llama.cpp. */
@@ -12,7 +12,17 @@ interface ComposeOptions {
   readonly local?: boolean;
 }
 
-/** One container, as `docker compose ps --format json` describes it. */
+/**
+ * One container as `docker compose ps --format json` describes it. The wire
+ * names are Compose's, and a container without a healthcheck simply omits the
+ * field, hence the defaults.
+ */
+const composeStatusSchema = Schema.Struct({
+  Health: Schema.optionalWith(Schema.String, { default: (): string => "" }),
+  Service: Schema.String,
+  State: Schema.optionalWith(Schema.String, { default: (): string => "" }),
+});
+
 interface ComposeStatusEntry {
   readonly health: string;
   readonly service: string;
@@ -29,4 +39,9 @@ class DockerUnavailableError extends Data.TaggedError(
   }
 }
 
-export { type ComposeOptions, type ComposeStatusEntry, DockerUnavailableError };
+export {
+  type ComposeOptions,
+  type ComposeStatusEntry,
+  composeStatusSchema,
+  DockerUnavailableError,
+};
