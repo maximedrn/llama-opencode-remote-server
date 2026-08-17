@@ -57,6 +57,33 @@ const serviceOption: Options.Options<string> = Options.choice(
   Options.withDescription(Commands.descriptions.service),
 );
 
+/**
+ * Three states, two flags: `--keepalive` forces the front on, `--no-keepalive`
+ * forces it off, and neither leaves the decision to KEEPALIVE in `.env`. A
+ * lone boolean flag cannot express the third state — it reads as `false` when
+ * absent, which silently overrode the file.
+ */
+const keepaliveChoice = (on: boolean, off: boolean): Option.Option<boolean> => {
+  if (on) return Option.some(true);
+  return off ? Option.some(false) : Option.none();
+};
+
+const keepaliveOption: Options.Options<Option.Option<boolean>> = Options.all({
+  off: Options.boolean(Commands.options.noKeepalive).pipe(
+    Options.withDescription(Commands.descriptions.noKeepalive),
+  ),
+  on: Options.boolean(Commands.options.keepalive).pipe(
+    Options.withDescription(Commands.descriptions.keepalive),
+  ),
+}).pipe(
+  Options.map(
+    (flags: {
+      readonly off: boolean;
+      readonly on: boolean;
+    }): Option.Option<boolean> => keepaliveChoice(flags.on, flags.off),
+  ),
+);
+
 const targetOptions: TargetOptions = {
   backend: Options.choice(Commands.options.backend, Backends.list).pipe(
     Options.withDescription(Commands.descriptions.backend),
@@ -66,10 +93,7 @@ const targetOptions: TargetOptions = {
     Options.withDescription(Commands.descriptions.composeFile),
     Options.optional,
   ),
-  keepalive: Options.boolean(Commands.options.keepalive).pipe(
-    Options.withDescription(Commands.descriptions.keepalive),
-    Options.optional,
-  ),
+  keepalive: keepaliveOption,
   local: localOption,
 };
 
@@ -202,6 +226,7 @@ export {
   describeResult,
   initOptions,
   jsonOption,
+  keepaliveChoice,
   localOption,
   reportDoctor,
   reportStatus,

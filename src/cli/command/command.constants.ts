@@ -24,6 +24,7 @@ const Commands = {
     models:
       "List the local .gguf files, or what the server serves on a client host",
     modelUrl: "Direct download link to a model file",
+    noKeepalive: "Run without the keep-alive front, whatever .env says",
     preflight: "Check Docker, the model, the secrets and the Compose files",
     rotateKey: "Generate a new Llama API key, then restart llama.cpp",
     service: "Service whose logs to follow",
@@ -68,6 +69,7 @@ const Commands = {
     modelDirectory: "model-directory",
     modelFile: "model-file",
     modelUrl: "model-url",
+    noKeepalive: "no-keepalive",
     service: "service",
   },
   output: {
