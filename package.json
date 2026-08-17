@@ -19,7 +19,7 @@
   "name": "llama-opencode-remote-server",
   "private": true,
   "scripts": {
-    "build:heartbeat": "bun build.ts",
+    "build:heartbeat": "bun run src/heartbeat/heartbeat.build.ts",
     "format": "biome format --write .",
     "format:check": "biome format",
     "lint": "biome check",
@@ -27,7 +27,7 @@
     "prepare": "lefthook install",
     "spell": "cspell \"**\" --no-progress",
     "spell:words": "cspell \"**\" --no-progress --unique --words-only",
-    "stack": "bun run src/main.ts",
+    "stack": "bun run src/cli/cli.main.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "validate": "lefthook run check",

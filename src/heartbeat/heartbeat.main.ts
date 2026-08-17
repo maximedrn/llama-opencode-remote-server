@@ -1,5 +1,5 @@
-import { heartbeatConfig } from "@app/heartbeat/heartbeat.config.ts";
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
+import { heartbeatConfig } from "@app/heartbeat/heartbeat.factory.ts";
 import { probe, watch } from "@app/heartbeat/heartbeat.service.ts";
 import {
   type HeartbeatConfig,
