@@ -1,3 +1,4 @@
+import { Backends } from "@app/backend/backend.constants.ts";
 import type { Backend } from "@app/backend/backend.types.ts";
 import type { ComposeOptions } from "@app/docker/docker.types.ts";
 import {
@@ -64,38 +65,45 @@ const reportDoctor = (
     });
   });
 
+/**
+ * Doctor resolves its target leniently: an unusable backend or an unreadable
+ * `.env` is one of the things it is meant to report, not a reason to stop
+ * before printing anything.
+ */
 const doctorCommand: Command.Command<
   "doctor",
   StackService,
-  DoctorFailedError | LifecycleError,
+  DoctorFailedError,
   DoctorConfig
 > = Command.make(
   "doctor",
   { ...targetOptions, client: clientOption, json: jsonOption },
   (config: DoctorConfig) =>
-    config.client
-      ? Effect.flatMap(
-          StackService,
-          (stack: StackService): Effect.Effect<void, DoctorFailedError> =>
-            stack
-              .doctor("cpu", { local: config.local }, true)
-              .pipe(
-                Effect.flatMap((results: readonly DoctorResult[]) =>
-                  reportDoctor(results, config.json),
-                ),
+    Effect.gen(function* () {
+      const stack: StackService = yield* StackService;
+      const backend: Backend = yield* stack
+        .resolveBackend(config.backend)
+        .pipe(
+          Effect.orElseSucceed(
+            (): Backend =>
+              Option.getOrElse(
+                config.backend,
+                (): Backend => Backends.fallback,
               ),
-        )
-      : withTarget(config, (backend: Backend, options: ComposeOptions) =>
-          Effect.gen(function* () {
-            const stack: StackService = yield* StackService;
-            const results: readonly DoctorResult[] = yield* stack.doctor(
-              backend,
-              options,
-              false,
-            );
-            yield* reportDoctor(results, config.json);
-          }),
-        ),
+          ),
+        );
+      const options: ComposeOptions = yield* stack
+        .composeOptions(config.local, config.composeFile)
+        .pipe(
+          Effect.orElseSucceed((): ComposeOptions => ({ local: config.local })),
+        );
+      const results: readonly DoctorResult[] = yield* stack.doctor(
+        backend,
+        options,
+        config.client,
+      );
+      yield* reportDoctor(results, config.json);
+    }),
 ).pipe(Command.withDescription(Stack.descriptions.doctor));
 
 const healthCommand: Command.Command<
