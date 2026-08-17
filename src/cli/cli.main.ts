@@ -2,9 +2,9 @@ import {
   type StackCommandError,
   stackCommand,
 } from "@app/cli/command/command.factory.ts";
-import { DockerService } from "@app/cli/docker/docker.service.ts";
-import { Stack } from "@app/cli/stack/stack.constants.ts";
-import { StackService } from "@app/cli/stack/stack.service.ts";
+import { Stack } from "@app/cli/operation/stack/stack.constants.ts";
+import { StackService } from "@app/cli/operation/stack/stack.service.ts";
+import { DockerService } from "@app/cli/resource/docker/docker.service.ts";
 import { Command } from "@effect/cli";
 import type { CliApp } from "@effect/cli/CliApp";
 import type { Prompt } from "@effect/cli/Prompt";

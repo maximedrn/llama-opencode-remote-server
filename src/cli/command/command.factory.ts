@@ -1,6 +1,3 @@
-import { Backends } from "@app/cli/backend/backend.constants.ts";
-import type { Backend } from "@app/cli/backend/backend.types.ts";
-import type { SmokeTestError } from "@app/cli/client/client.interface.ts";
 import { Commands } from "@app/cli/command/command.constants.ts";
 import {
   clientOption,
@@ -14,24 +11,27 @@ import {
   targetOptions,
   withTarget,
 } from "@app/cli/command/command.utils.ts";
-import { Docker } from "@app/cli/docker/docker.constants.ts";
-import { DockerService } from "@app/cli/docker/docker.service.ts";
-import type { ComposeOptions } from "@app/cli/docker/docker.types.ts";
-import type { DoctorFailedError } from "@app/cli/doctor/doctor.types.ts";
+import type { SmokeTestError } from "@app/cli/operation/client/client.interface.ts";
+import type { DoctorFailedError } from "@app/cli/operation/doctor/doctor.types.ts";
 import type {
   RotateKeyError,
   UninstallError,
-} from "@app/cli/lifecycle/lifecycle.types.ts";
-import type { ModelListing } from "@app/cli/model/model.types.ts";
-import { Stack } from "@app/cli/stack/stack.constants.ts";
+} from "@app/cli/operation/lifecycle/lifecycle.types.ts";
+import { Stack } from "@app/cli/operation/stack/stack.constants.ts";
 import type {
   InitError,
   LifecycleError,
   ListModelsError,
   PreflightError,
-} from "@app/cli/stack/stack.interface.ts";
-import { StackService } from "@app/cli/stack/stack.service.ts";
-import type { InitInput } from "@app/cli/stack/stack.types.ts";
+} from "@app/cli/operation/stack/stack.interface.ts";
+import { StackService } from "@app/cli/operation/stack/stack.service.ts";
+import type { InitInput } from "@app/cli/operation/stack/stack.types.ts";
+import { Backends } from "@app/cli/resource/backend/backend.constants.ts";
+import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
+import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
+import { DockerService } from "@app/cli/resource/docker/docker.service.ts";
+import type { ComposeOptions } from "@app/cli/resource/docker/docker.types.ts";
+import type { ModelListing } from "@app/cli/resource/model/model.types.ts";
 import type { Prompt } from "@effect/cli";
 import { Command } from "@effect/cli";
 import { Console, Effect, Option } from "effect";

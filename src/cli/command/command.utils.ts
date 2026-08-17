@@ -1,19 +1,19 @@
-import { Backends } from "@app/cli/backend/backend.constants.ts";
-import type { Backend } from "@app/cli/backend/backend.types.ts";
 import { Commands } from "@app/cli/command/command.constants.ts";
-import { Docker } from "@app/cli/docker/docker.constants.ts";
-import type {
-  ComposeOptions,
-  ComposeStatusEntry,
-} from "@app/cli/docker/docker.types.ts";
-import { parseComposeStatus } from "@app/cli/docker/docker.utils.ts";
 import {
   DoctorFailedError,
   type DoctorResult,
-} from "@app/cli/doctor/doctor.types.ts";
-import type { ModelListing } from "@app/cli/model/model.types.ts";
-import type { LifecycleError } from "@app/cli/stack/stack.interface.ts";
-import { StackService } from "@app/cli/stack/stack.service.ts";
+} from "@app/cli/operation/doctor/doctor.types.ts";
+import type { LifecycleError } from "@app/cli/operation/stack/stack.interface.ts";
+import { StackService } from "@app/cli/operation/stack/stack.service.ts";
+import { Backends } from "@app/cli/resource/backend/backend.constants.ts";
+import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
+import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
+import type {
+  ComposeOptions,
+  ComposeStatusEntry,
+} from "@app/cli/resource/docker/docker.types.ts";
+import { parseComposeStatus } from "@app/cli/resource/docker/docker.utils.ts";
+import type { ModelListing } from "@app/cli/resource/model/model.types.ts";
 import { Options } from "@effect/cli";
 import { Console, Effect, Option } from "effect";
 
