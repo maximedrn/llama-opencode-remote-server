@@ -31,7 +31,7 @@ Cross-platform Docker stack for serving any GGUF model through llama.cpp.
   - [Commands](#commands)
   - [Client machines](#client-machines)
   - [Custom Compose file](#custom-compose-file)
-  - [Heartbeat](#heartbeat)
+  - [Keep-alive front](#keep-alive-front)
   - [Troubleshooting](#troubleshooting)
 
 ## Compatibility
@@ -276,8 +276,8 @@ bun run stack test
 | `rotate-key` | Rotate the API key, restart llama.cpp and wait for it to be healthy |
 | `uninstall`  | Stop everything, then offer to remove `.env` and `secrets/`      |
 
-Every Compose-driving command takes `--backend`, `--local` and
-`--compose-file`.
+Every Compose-driving command takes `--backend`, `--local`, `--compose-file`
+and `--keepalive`.
 
 ## Client machines
 
@@ -298,8 +298,10 @@ endpoint otherwise.
 
 ## Custom Compose file
 
-A machine-specific Compose file is layered last, so it overrides everything the
-repository ships:
+`--compose-file` replaces `docker/docker-compose.<backend>.yaml`, the file that
+defines llama.cpp itself. The base file — reverse proxy, Cloudflare Tunnel,
+networks and secrets — is always layered under it, and so is the keep-alive
+front when it is enabled:
 
 ```bash
 bun run stack up --compose-file docker/docker-compose.rig.yaml
@@ -309,25 +311,35 @@ Set `COMPOSE_OVERRIDE_FILE` in `.env` to apply it to every command without
 passing the flag. The variable is deliberately not called `COMPOSE_FILE`:
 Docker Compose reads that one itself and would replace the whole file set.
 
-## Heartbeat
+## Keep-alive front
 
-The `heartbeat` service is a small Bun-compiled binary
-(`docker/heartbeat.Dockerfile`) that polls `http://llama:8080/health` on the
-internal network. It exists because the llama.cpp images cannot be relied on
-for a container healthcheck: several of them ship without an HTTP client, and
-some published tags lag upstream.
+llama.cpp only writes to the response once it has a token to send. On a long
+prompt some builds stay silent for minutes — and every hop in between
+(Cloudflare, Nginx, the client SDK) counts that silence as an idle connection
+and closes the session mid-request.
 
-It logs one logfmt line per event — startup, the llama.cpp build it found
-through `/props`, and every transition between healthy and unhealthy:
+`--keepalive` layers an optional service between the reverse proxy and
+llama.cpp. Clients connect to it, it relays the request untouched, and while
+the upstream says nothing it writes an SSE comment (`: keep-alive`) every
+`HEARTBEAT_KEEPALIVE_MS`. Those bytes keep every hop awake and are ignored by
+any SSE client.
 
 ```bash
+bun run stack init --keepalive     # remembered in .env as KEEPALIVE
+bun run stack up --keepalive       # or per command
 bun run stack logs --service heartbeat
 ```
 
-Its healthcheck (`heartbeat check`, one probe then an exit code) is what the
-reverse proxy waits on before starting, and what `rotate-key` polls after
-restarting llama.cpp. Tune it with `HEARTBEAT_INTERVAL_MS` and
-`HEARTBEAT_TIMEOUT_MS` in `.env`.
+It is a Bun-compiled binary (`src/heartbeat`, built by
+`docker/heartbeat.Dockerfile`) that logs one logfmt line per relayed request,
+per keep-alive burst, and for the llama.cpp build it reads from `/props` at
+startup. Its healthcheck (`heartbeat check`) probes llama.cpp *through* the
+front, so an unhealthy container means either llama.cpp is down or the front
+stopped relaying; `rotate-key` waits on it before reporting success.
+
+Leave it off when llama.cpp already keeps the connection alive on its own: the
+extra hop is pure latency then, and nothing else changes — Nginx points
+straight at llama.cpp again.
 
 ## Troubleshooting
 
@@ -338,7 +350,8 @@ restarting llama.cpp. Tune it with `HEARTBEAT_INTERVAL_MS` and
 | `Missing secrets/...`                                      | secrets wiped                  | Re-run `init`.                                                       |
 | `... rejected the API key (401/403)`                        | wrong key or Access token      | Check `LLAMA_API_KEY` and the Access token in `clients/client.env`.  |
 | `... did not answer`                                        | stack down, or wrong base URL  | `bun run stack up`, then verify `LLAMA_BASE_URL`.                    |
-| `llama.cpp is not healthy after the restart`                | model still loading            | Watch `bun run stack logs --service heartbeat`, then `status`.       |
+| `llama.cpp is not healthy after the restart`                | model still loading            | Watch `bun run stack logs --service llama`, then `status`.           |
+| Session dies mid-answer on a long prompt                    | llama.cpp silent while it works | Turn the keep-alive front on: `bun run stack up --keepalive`.       |
 | `AMD ROCm ... / NVIDIA CUDA ...`                            | unsupported host               | Use `--backend cpu` on that machine.                                 |
 | `Run \`init\` first: .env is missing ...`                     | server command on a client host | Use the client commands, or run `init` on the server.               |
 

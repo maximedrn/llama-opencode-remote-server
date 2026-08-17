@@ -1,0 +1,58 @@
+# Optional keep-alive front, layered by `--keepalive` (or KEEPALIVE in .env).
+#
+# llama.cpp only writes to the response once it has a token, and some builds
+# send nothing at all while they process a long prompt. Every hop in between —
+# Cloudflare, Nginx, the client SDK — counts that silence as an idle connection
+# and closes the session mid-request. This service sits between the proxy and
+# llama.cpp, relays the request untouched and keeps the stream warm with SSE
+# comments until the first real token arrives.
+#
+# A llama.cpp build that already emits its own keep-alive needs none of this:
+# leave the file out and the clients reach llama.cpp directly.
+services:
+  heartbeat:
+    build:
+      context: .
+      dockerfile: docker/heartbeat.Dockerfile
+    image: ${HEARTBEAT_IMAGE:-llama-opencode-remote-server/heartbeat:local}
+    restart: unless-stopped
+    depends_on:
+      llama:
+        condition: service_healthy
+    read_only: true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    secrets:
+      - llama_api_key
+    environment:
+      HEARTBEAT_KEEPALIVE_MS: ${HEARTBEAT_KEEPALIVE_MS:-10000}
+      HEARTBEAT_PORT: "8081"
+      HEARTBEAT_TIMEOUT_MS: ${HEARTBEAT_TIMEOUT_MS:-5000}
+      LLAMA_API_KEY_FILE: /run/secrets/llama_api_key
+      LLAMA_UPSTREAM_URL: http://llama:8080
+    healthcheck:
+      test:
+        - "CMD"
+        - "/app/heartbeat"
+        - "check"
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - backend
+
+  proxy:
+    depends_on:
+      heartbeat:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./nginx/upstream.heartbeat.conf
+        target: /etc/nginx/upstream.conf
+        read_only: true

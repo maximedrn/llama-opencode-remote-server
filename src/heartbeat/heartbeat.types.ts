@@ -5,18 +5,18 @@ import { Data, type Option } from "effect";
 interface HeartbeatConfig {
   /** Bearer token read from the mounted Docker secret, when there is one. */
   readonly apiKey: Option.Option<string>;
-  readonly healthUrl: string;
-  readonly intervalMs: number;
-  readonly propsUrl: string;
-  readonly timeoutMs: number;
+  /** Silence tolerated before a keep-alive comment is written. */
+  readonly keepAliveMs: number;
+  readonly port: number;
+  readonly probeTimeoutMs: number;
+  readonly upstreamUrl: string;
 }
 
-/** One probe: either the server answered in time, or it did not. */
+/** One probe: either llama.cpp answered in time, or it did not. */
 interface ProbeResult {
   readonly latencyMs: number;
   readonly ok: boolean;
   readonly reason: string;
-  readonly status: number;
 }
 
 /** Raised by `heartbeat check`, which is what makes the container unhealthy. */

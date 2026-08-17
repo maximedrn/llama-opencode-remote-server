@@ -9,6 +9,7 @@ ignorePaths:
 words:
   - addgroup
   - adduser
+  - alives
   - biomejs
   - Bunfig
   - bunx
@@ -45,6 +46,7 @@ words:
   - postconditions
   - qwen
   - Qwik
+  - recognised
   - rocm
   - scgi
   - seccomp

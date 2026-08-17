@@ -44,5 +44,7 @@ pre-push:
       run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.nvidia.yaml config --quiet
     compose-amd:
       run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.amd.yaml config --quiet
+    compose-keepalive:
+      run: docker compose --project-directory . --env-file .env.example --profile edge -f docker/docker-compose.yaml -f docker/docker-compose.cpu.yaml -f docker/docker-compose.keepalive.yaml config --quiet
     heartbeat-image:
       run: docker build --quiet --file docker/heartbeat.Dockerfile . >/dev/null

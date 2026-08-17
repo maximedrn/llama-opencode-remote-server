@@ -1,4 +1,7 @@
-import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
+import {
+  Heartbeat,
+  trailingSlash,
+} from "@app/heartbeat/heartbeat.constants.ts";
 import type { HeartbeatConfig } from "@app/heartbeat/heartbeat.types.ts";
 import { FileSystem } from "@effect/platform";
 import type { ConfigError } from "effect";
@@ -10,7 +13,7 @@ const text = (key: string, fallback: string): Config.Config<string> =>
 const positive = (key: string, fallback: number): Config.Config<number> =>
   Config.integer(key).pipe(
     Config.validate({
-      message: `${key} must be a positive number of milliseconds`,
+      message: `${key} must be a positive number`,
       validation: (value: number): boolean => value > 0,
     }),
     Config.withDefault(fallback),
@@ -49,26 +52,32 @@ const heartbeatConfig: Effect.Effect<
 > = Effect.gen(function* () {
   const values: {
     readonly apiKeyFile: Option.Option<string>;
-    readonly healthUrl: string;
-    readonly intervalMs: number;
-    readonly propsUrl: string;
-    readonly timeoutMs: number;
+    readonly keepAliveMs: number;
+    readonly port: number;
+    readonly probeTimeoutMs: number;
+    readonly upstreamUrl: string;
   } = yield* Config.all({
     apiKeyFile: Config.option(Config.string(Heartbeat.keys.apiKeyFile)),
-    healthUrl: text(Heartbeat.keys.healthUrl, Heartbeat.defaults.healthUrl),
-    intervalMs: positive(
-      Heartbeat.keys.intervalMs,
-      Heartbeat.defaults.intervalMs,
+    keepAliveMs: positive(
+      Heartbeat.keys.keepAliveMs,
+      Heartbeat.defaults.keepAliveMs,
     ),
-    propsUrl: text(Heartbeat.keys.propsUrl, Heartbeat.defaults.propsUrl),
-    timeoutMs: positive(Heartbeat.keys.timeoutMs, Heartbeat.defaults.timeoutMs),
+    port: positive(Heartbeat.keys.port, Heartbeat.defaults.port),
+    probeTimeoutMs: positive(
+      Heartbeat.keys.probeTimeoutMs,
+      Heartbeat.defaults.probeTimeoutMs,
+    ),
+    upstreamUrl: text(
+      Heartbeat.keys.upstreamUrl,
+      Heartbeat.defaults.upstreamUrl,
+    ),
   });
   return {
     apiKey: yield* readApiKey(values.apiKeyFile),
-    healthUrl: values.healthUrl,
-    intervalMs: values.intervalMs,
-    propsUrl: values.propsUrl,
-    timeoutMs: values.timeoutMs,
+    keepAliveMs: values.keepAliveMs,
+    port: values.port,
+    probeTimeoutMs: values.probeTimeoutMs,
+    upstreamUrl: values.upstreamUrl.replace(trailingSlash, ""),
   };
 });
 
