@@ -29,6 +29,10 @@ Cross-platform Docker stack for serving any GGUF model through llama.cpp.
     - [8. Configure the client](#8-configure-the-client)
     - [9. Test](#9-test)
   - [Commands](#commands)
+  - [Client machines](#client-machines)
+  - [Custom Compose file](#custom-compose-file)
+  - [Heartbeat](#heartbeat)
+  - [Troubleshooting](#troubleshooting)
 
 ## Compatibility
 
@@ -255,15 +259,88 @@ bun run stack test
 
 ## Commands
 
-| Command      | Description                              |
-| ------------ | ---------------------------------------- |
-| `init`       | Configure the backend, model and secrets |
-| `preflight`  | Validate the stack                       |
-| `pull`       | Pull container images                    |
-| `up`         | Start the stack                          |
-| `down`       | Stop the stack                           |
-| `restart`    | Restart the stack                        |
-| `status`     | Show container status                    |
-| `logs`       | Follow llama.cpp logs                    |
-| `test`       | Test the configured client               |
-| `rotate-key` | Rotate the API key and restart llama.cpp |
+| Command      | Description                                                     |
+| ------------ | --------------------------------------------------------------- |
+| `init`       | Configure the backend, model and secrets (`--force` to overwrite) |
+| `preflight`  | Validate the stack                                              |
+| `pull`       | Pull container images                                           |
+| `up`         | Start the stack                                                 |
+| `down`       | Stop the stack                                                  |
+| `restart`    | Restart the stack                                               |
+| `status`     | State and health of every service (`--json` for raw Compose JSON) |
+| `logs`       | Follow one service (`--service llama\|heartbeat\|proxy\|cloudflared`) |
+| `test`       | Send a chat completion with `clients/client.env`                |
+| `health`     | One-token completion proving the server answers and the key works |
+| `models`     | Local `.gguf` files, or what the server serves on a client host  |
+| `doctor`     | Every check with a suggested fix (`--client`, `--json`)          |
+| `rotate-key` | Rotate the API key, restart llama.cpp and wait for it to be healthy |
+| `uninstall`  | Stop everything, then offer to remove `.env` and `secrets/`      |
+
+Every Compose-driving command takes `--backend`, `--local` and
+`--compose-file`.
+
+## Client machines
+
+`test`, `health`, `models` and `doctor --client` only need
+`clients/client.env`: no `.env`, no Docker, no model and no secret on that
+machine. Clone the repository, run `bun install`, fill in `clients/client.env`
+and check the endpoint the same way the server host does:
+
+```bash
+bun run stack doctor --client
+bun run stack health
+bun run stack models
+```
+
+`models` lists the local `.gguf` files when `.env` points at a model
+directory, and falls back to the `/v1/models` answer of the configured
+endpoint otherwise.
+
+## Custom Compose file
+
+A machine-specific Compose file is layered last, so it overrides everything the
+repository ships:
+
+```bash
+bun run stack up --compose-file docker/docker-compose.rig.yaml
+```
+
+Set `COMPOSE_OVERRIDE_FILE` in `.env` to apply it to every command without
+passing the flag. The variable is deliberately not called `COMPOSE_FILE`:
+Docker Compose reads that one itself and would replace the whole file set.
+
+## Heartbeat
+
+The `heartbeat` service is a small Bun-compiled binary
+(`docker/heartbeat.Dockerfile`) that polls `http://llama:8080/health` on the
+internal network. It exists because the llama.cpp images cannot be relied on
+for a container healthcheck: several of them ship without an HTTP client, and
+some published tags lag upstream.
+
+It logs one logfmt line per event — startup, the llama.cpp build it found
+through `/props`, and every transition between healthy and unhealthy:
+
+```bash
+bun run stack logs --service heartbeat
+```
+
+Its healthcheck (`heartbeat check`, one probe then an exit code) is what the
+reverse proxy waits on before starting, and what `rotate-key` polls after
+restarting llama.cpp. Tune it with `HEARTBEAT_INTERVAL_MS` and
+`HEARTBEAT_TIMEOUT_MS` in `.env`.
+
+## Troubleshooting
+
+| Symptom                                                    | Likely cause                   | Fix                                                                 |
+| ---------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| `Docker is not installed or the daemon is not running.`     | Docker Desktop stopped         | Start Docker, then `bun run stack doctor`.                          |
+| `Model file not found`                                     | model missing or moved         | Re-run `init`, or copy the `.gguf` into `MODEL_DIRECTORY`.           |
+| `Missing secrets/...`                                      | secrets wiped                  | Re-run `init`.                                                       |
+| `... rejected the API key (401/403)`                        | wrong key or Access token      | Check `LLAMA_API_KEY` and the Access token in `clients/client.env`.  |
+| `... did not answer`                                        | stack down, or wrong base URL  | `bun run stack up`, then verify `LLAMA_BASE_URL`.                    |
+| `llama.cpp is not healthy after the restart`                | model still loading            | Watch `bun run stack logs --service heartbeat`, then `status`.       |
+| `AMD ROCm ... / NVIDIA CUDA ...`                            | unsupported host               | Use `--backend cpu` on that machine.                                 |
+| `Run \`init\` first: .env is missing ...`                     | server command on a client host | Use the client commands, or run `init` on the server.               |
+
+`bun run stack doctor` prints all of the above at once, each failing line with
+the fix that clears it.
