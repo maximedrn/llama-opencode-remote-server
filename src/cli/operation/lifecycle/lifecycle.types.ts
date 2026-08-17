@@ -15,6 +15,8 @@ class LlamaNotHealthyError extends Data.TaggedError("LlamaNotHealthyError")<{
   }
 }
 
+type HealthError = CommandFailedError | PlatformError;
+
 type RotateKeyError = CommandFailedError | LlamaNotHealthyError | PlatformError;
 
 type UninstallError =
@@ -23,4 +25,9 @@ type UninstallError =
   | PlatformError
   | QuitException;
 
-export { LlamaNotHealthyError, type RotateKeyError, type UninstallError };
+export {
+  type HealthError,
+  LlamaNotHealthyError,
+  type RotateKeyError,
+  type UninstallError,
+};

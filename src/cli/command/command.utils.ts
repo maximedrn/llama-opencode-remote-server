@@ -1,4 +1,8 @@
 import { Commands } from "@app/cli/command/command.constants.ts";
+import type {
+  StackTargetConfig,
+  TargetOptions,
+} from "@app/cli/command/command.types.ts";
 import {
   DoctorFailedError,
   type DoctorResult,
@@ -16,21 +20,6 @@ import { parseComposeStatus } from "@app/cli/resource/docker/docker.utils.ts";
 import type { ModelListing } from "@app/cli/resource/model/model.types.ts";
 import { Options } from "@effect/cli";
 import { Console, Effect, Option } from "effect";
-
-/** Shared by preflight, status, logs and every lifecycle command. */
-type StackTargetConfig = {
-  readonly backend: Option.Option<Backend>;
-  readonly composeFile: Option.Option<string>;
-  readonly keepalive: Option.Option<boolean>;
-  readonly local: boolean;
-};
-
-type TargetOptions = {
-  readonly backend: Options.Options<Option.Option<Backend>>;
-  readonly composeFile: Options.Options<Option.Option<string>>;
-  readonly keepalive: Options.Options<Option.Option<boolean>>;
-  readonly local: Options.Options<boolean>;
-};
 
 const localOption: Options.Options<boolean> = Options.boolean(
   Commands.options.local,
@@ -230,7 +219,6 @@ export {
   localOption,
   reportDoctor,
   reportStatus,
-  type StackTargetConfig,
   serviceOption,
   targetOptions,
   withTarget,

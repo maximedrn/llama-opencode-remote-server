@@ -1,4 +1,6 @@
 import { Model } from "@app/cli/resource/model/model.constants.ts";
+import type { ProcessApi } from "@app/cli/system/process/process.interface.ts";
+import type { FileSystem, Path } from "@effect/platform";
 import { Data, type Option } from "effect";
 
 interface ResolvedModel {
@@ -40,6 +42,25 @@ interface ModelListing {
 interface ModelRequest {
   readonly directory: string;
   readonly source: ModelSource;
+}
+
+interface ModelDependencies {
+  readonly fileSystem: FileSystem.FileSystem;
+  readonly path: Path.Path;
+  readonly processes: ProcessApi;
+}
+
+interface ListDependencies {
+  readonly fileSystem: FileSystem.FileSystem;
+  readonly path: Path.Path;
+}
+
+interface ModelSourceInput {
+  /** Glob passed to `hf download --include`. */
+  readonly include: Option.Option<string>;
+  readonly modelFile: Option.Option<string>;
+  readonly modelUrl: Option.Option<string>;
+  readonly repository: Option.Option<string>;
 }
 
 class HuggingFaceCliMissingError extends Data.TaggedError(
@@ -88,7 +109,9 @@ export {
   type DownloadUrlSource,
   HuggingFaceCliMissingError,
   type HuggingFaceSource,
+  type ListDependencies,
   type LocalFileSource,
+  type ModelDependencies,
   ModelDownloadError,
   ModelFileMissingError,
   type ModelListing,
@@ -96,5 +119,6 @@ export {
   type ModelRequest,
   type ModelSource,
   ModelSourceError,
+  type ModelSourceInput,
   type ResolvedModel,
 };

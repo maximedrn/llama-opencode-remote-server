@@ -1,4 +1,14 @@
 import { Commands } from "@app/cli/command/command.constants.ts";
+import type {
+  DoctorConfig,
+  EmptyConfig,
+  LifecycleDefinition,
+  LogsConfig,
+  StackCommandError,
+  StackSubcommandConfig,
+  StackTargetConfig,
+  StatusConfig,
+} from "@app/cli/command/command.types.ts";
 import {
   clientOption,
   describeModel,
@@ -6,7 +16,6 @@ import {
   jsonOption,
   reportDoctor,
   reportStatus,
-  type StackTargetConfig,
   serviceOption,
   targetOptions,
   withTarget,
@@ -35,33 +44,6 @@ import type { ModelListing } from "@app/cli/resource/model/model.types.ts";
 import type { Prompt } from "@effect/cli";
 import { Command } from "@effect/cli";
 import { Console, Effect, Option } from "effect";
-
-/** Commands that take neither options nor arguments. */
-type EmptyConfig = Record<string, never>;
-
-type StatusConfig = StackTargetConfig & { readonly json: boolean };
-
-type LogsConfig = StackTargetConfig & { readonly service: string };
-
-type DoctorConfig = StackTargetConfig & {
-  readonly client: boolean;
-  readonly json: boolean;
-};
-
-type LifecycleDefinition<Name extends string> = {
-  readonly args: readonly string[];
-  readonly description: string;
-  readonly name: Name;
-};
-
-/** Parsed value of whichever subcommand ran. */
-type StackSubcommandConfig =
-  | DoctorConfig
-  | EmptyConfig
-  | InitInput
-  | LogsConfig
-  | StackTargetConfig
-  | StatusConfig;
 
 const initCommand: Command.Command<
   "init",
@@ -249,17 +231,6 @@ const uninstallCommand: Command.Command<
     ),
   ),
 ).pipe(Command.withDescription(Commands.descriptions.uninstall));
-
-/** Every failure any subcommand can raise. */
-type StackCommandError =
-  | DoctorFailedError
-  | InitError
-  | LifecycleError
-  | ListModelsError
-  | PreflightError
-  | RotateKeyError
-  | SmokeTestError
-  | UninstallError;
 
 const stackCommand: Command.Command<
   "stack",

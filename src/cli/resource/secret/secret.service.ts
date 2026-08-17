@@ -1,6 +1,9 @@
 import { Secrets } from "@app/cli/resource/secret/secret.constants.ts";
 import type { SecretApi } from "@app/cli/resource/secret/secret.interface.ts";
-import { MissingSecretError } from "@app/cli/resource/secret/secret.types.ts";
+import {
+  MissingSecretError,
+  type Secret,
+} from "@app/cli/resource/secret/secret.types.ts";
 import {
   fingerprint,
   generateApiKey,
@@ -8,8 +11,6 @@ import {
 import { FileSystem, Path } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import { Effect, Redacted } from "effect";
-
-type Secret = Redacted.Redacted<string>;
 
 class SecretService extends Effect.Service<SecretService>()("SecretService", {
   effect: Effect.gen(function* () {

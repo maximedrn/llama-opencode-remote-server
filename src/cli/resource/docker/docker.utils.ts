@@ -3,6 +3,7 @@ import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
 import type {
   ComposeOptions,
   ComposeStatusEntry,
+  ComposeStatusFields,
 } from "@app/cli/resource/docker/docker.types.ts";
 import { composeStatusSchema } from "@app/cli/resource/docker/docker.types.ts";
 import { Project } from "@app/cli/system/project/project.constants.ts";
@@ -43,8 +44,6 @@ const composeArgs = (
     : []),
   ...(options.local === true ? [Docker.flags.file, localFile(options)] : []),
 ];
-
-type ComposeStatusFields = Schema.Schema.Type<typeof composeStatusSchema>;
 
 const decodeStatusEntry: (
   entry: unknown,

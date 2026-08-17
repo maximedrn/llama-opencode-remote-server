@@ -1,5 +1,9 @@
 import { Model } from "@app/cli/resource/model/model.constants.ts";
 import type { ModelResolutionError } from "@app/cli/resource/model/model.interface.ts";
+import type {
+  ListDependencies,
+  ModelDependencies,
+} from "@app/cli/resource/model/model.types.ts";
 import {
   type DownloadUrlSource,
   HuggingFaceCliMissingError,
@@ -16,17 +20,9 @@ import {
   fileNameFromUrl,
   toPosixPath,
 } from "@app/cli/resource/model/model.utils.ts";
-import type { ProcessApi } from "@app/cli/system/process/process.interface.ts";
-import type { FileSystem, Path } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import type { File } from "@effect/platform/FileSystem";
 import { Console, Effect, Option } from "effect";
-
-interface ModelDependencies {
-  readonly fileSystem: FileSystem.FileSystem;
-  readonly path: Path.Path;
-  readonly processes: ProcessApi;
-}
 
 /** Every file matching the glob anywhere under the directory, sorted. */
 const scanFiles = (
@@ -185,11 +181,6 @@ const resolveHuggingFace = (
         Effect.succeed({ directory: toPosixPath(directory), file }),
     });
   });
-
-interface ListDependencies {
-  readonly fileSystem: FileSystem.FileSystem;
-  readonly path: Path.Path;
-}
 
 const describeFile = (
   dependencies: ListDependencies,

@@ -1,5 +1,5 @@
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
-import { Data, type Option } from "effect";
+import { Data, type Option, type Runtime } from "effect";
 
 /** Everything the container is configured with, resolved once at startup. */
 interface HeartbeatConfig {
@@ -19,6 +19,10 @@ interface ProbeResult {
   readonly reason: string;
 }
 
+/** The runtime of the fiber that started the server, so the request handlers
+ * — plain async functions — log through the same logger and annotations. */
+type Host = Runtime.Runtime<never>;
+
 /** Raised by `heartbeat check`, which is what makes the container unhealthy. */
 class LlamaDownError extends Data.TaggedError("LlamaDownError")<{
   readonly reason: string;
@@ -29,4 +33,4 @@ class LlamaDownError extends Data.TaggedError("LlamaDownError")<{
   }
 }
 
-export { type HeartbeatConfig, LlamaDownError, type ProbeResult };
+export { type HeartbeatConfig, type Host, LlamaDownError, type ProbeResult };

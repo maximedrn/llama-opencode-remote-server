@@ -29,6 +29,8 @@ interface ComposeStatusEntry {
   readonly state: string;
 }
 
+type ComposeStatusFields = Schema.Schema.Type<typeof composeStatusSchema>;
+
 class DockerUnavailableError extends Data.TaggedError(
   "DockerUnavailableError",
 )<{
@@ -42,6 +44,7 @@ class DockerUnavailableError extends Data.TaggedError(
 export {
   type ComposeOptions,
   type ComposeStatusEntry,
+  type ComposeStatusFields,
   composeStatusSchema,
   DockerUnavailableError,
 };

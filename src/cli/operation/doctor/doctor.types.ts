@@ -7,6 +7,7 @@ import type { ModelFileMissingError } from "@app/cli/resource/model/model.types.
 import type { MissingSecretError } from "@app/cli/resource/secret/secret.types.ts";
 import type { CommandFailedError } from "@app/cli/system/process/process.types.ts";
 import type { PlatformError } from "@effect/platform/Error";
+import type { Effect } from "effect";
 import { Data, type Option } from "effect";
 
 /** One line of `stack doctor`, failures carrying the fix that clears them. */
@@ -15,6 +16,12 @@ interface DoctorResult {
   readonly fix: Option.Option<string>;
   readonly label: string;
   readonly ok: boolean;
+}
+
+interface DoctorCheck {
+  readonly fix: string;
+  readonly label: string;
+  readonly run: Effect.Effect<void, DoctorCheckError>;
 }
 
 /** Anything a single check may fail with; each one is absorbed into a line. */
@@ -37,4 +44,9 @@ class DoctorFailedError extends Data.TaggedError("DoctorFailedError")<{
   }
 }
 
-export { type DoctorCheckError, DoctorFailedError, type DoctorResult };
+export {
+  type DoctorCheck,
+  type DoctorCheckError,
+  DoctorFailedError,
+  type DoctorResult,
+};

@@ -1,16 +1,9 @@
 import {
   type ModelSource,
   ModelSourceError,
+  type ModelSourceInput,
 } from "@app/cli/resource/model/model.types.ts";
 import { Effect, Option } from "effect";
-
-interface ModelSourceInput {
-  /** Glob passed to `hf download --include`. */
-  readonly include: Option.Option<string>;
-  readonly modelFile: Option.Option<string>;
-  readonly modelUrl: Option.Option<string>;
-  readonly repository: Option.Option<string>;
-}
 
 const huggingFaceSource = (
   repository: string,

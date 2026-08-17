@@ -1,19 +1,9 @@
-import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
 import { EnvFile } from "@app/cli/resource/env/env.constants.ts";
-import type { EnvRecord } from "@app/cli/resource/env/env.types.ts";
-import type { ResolvedModel } from "@app/cli/resource/model/model.types.ts";
+import type {
+  EnvRecord,
+  StackEnvInput,
+} from "@app/cli/resource/env/env.types.ts";
 import { modelAlias } from "@app/cli/resource/model/model.utils.ts";
-import type { HostThreads } from "@app/cli/system/host/host.interface.ts";
-
-interface StackEnvInput {
-  readonly backend: Backend;
-  /** What `.env` already holds; anything tuned by hand is kept as it is. */
-  readonly existing: EnvRecord;
-  /** Written so every later command layers the keep-alive Compose file. */
-  readonly keepalive: boolean;
-  readonly model: ResolvedModel;
-  readonly threads: HostThreads;
-}
 
 /**
  * Builds the `.env` Compose reads, with the thread counts measured on the host.

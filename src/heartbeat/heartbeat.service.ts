@@ -1,6 +1,7 @@
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
 import type {
   HeartbeatConfig,
+  Host,
   ProbeResult,
 } from "@app/heartbeat/heartbeat.types.ts";
 import type { Server } from "bun";
@@ -14,10 +15,6 @@ import {
   Schema,
   Stream,
 } from "effect";
-
-/** The runtime of the fiber that started the server, so the request handlers
- * — plain async functions — log through the same logger and annotations. */
-type Host = Runtime.Runtime<never>;
 
 /** A completion asking for a stream is the only one worth holding open. */
 const streamRequestSchema = Schema.parseJson(

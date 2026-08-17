@@ -1,6 +1,7 @@
 import { smokeTest } from "@app/cli/operation/client/client.helpers.ts";
 import { Doctor } from "@app/cli/operation/doctor/doctor.constants.ts";
 import type {
+  DoctorCheck,
   DoctorCheckError,
   DoctorResult,
 } from "@app/cli/operation/doctor/doctor.types.ts";
@@ -12,12 +13,6 @@ import type { ModelLocation } from "@app/cli/resource/env/env.types.ts";
 import { ModelFileMissingError } from "@app/cli/resource/model/model.types.ts";
 import { Secrets } from "@app/cli/resource/secret/secret.constants.ts";
 import { Effect, Either, Option } from "effect";
-
-interface DoctorCheck {
-  readonly fix: string;
-  readonly label: string;
-  readonly run: Effect.Effect<void, DoctorCheckError>;
-}
 
 const modelCheck = (
   dependencies: StackDependencies,

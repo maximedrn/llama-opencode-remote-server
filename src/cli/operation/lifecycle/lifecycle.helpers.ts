@@ -1,5 +1,6 @@
 import { Lifecycle } from "@app/cli/operation/lifecycle/lifecycle.constants.ts";
 import {
+  type HealthError,
   LlamaNotHealthyError,
   type RotateKeyError,
   type UninstallError,
@@ -14,12 +15,8 @@ import type {
 import { parseComposeStatus } from "@app/cli/resource/docker/docker.utils.ts";
 import { EnvFile } from "@app/cli/resource/env/env.constants.ts";
 import { Secrets } from "@app/cli/resource/secret/secret.constants.ts";
-import type { CommandFailedError } from "@app/cli/system/process/process.types.ts";
 import { Prompt } from "@effect/cli";
-import type { PlatformError } from "@effect/platform/Error";
 import { Console, Duration, Effect, Option, type Redacted } from "effect";
-
-type HealthError = CommandFailedError | PlatformError;
 
 const serviceEntry = (
   services: readonly ComposeStatusEntry[],

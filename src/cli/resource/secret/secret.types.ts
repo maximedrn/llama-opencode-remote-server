@@ -1,5 +1,7 @@
 import { Secrets } from "@app/cli/resource/secret/secret.constants.ts";
-import { Data } from "effect";
+import { Data, type Redacted } from "effect";
+
+type Secret = Redacted.Redacted<string>;
 
 class MissingSecretError extends Data.TaggedError("MissingSecretError")<{
   readonly name: string;
@@ -17,4 +19,4 @@ class EmptyTunnelTokenError extends Data.TaggedError("EmptyTunnelTokenError")<{
   }
 }
 
-export { EmptyTunnelTokenError, MissingSecretError };
+export { EmptyTunnelTokenError, MissingSecretError, type Secret };
