@@ -14,6 +14,7 @@ words:
   - cuda
   - envfile
   - fastcgi
+  - finalizer
   - Filenaming
   - ggml
   - gguf
@@ -32,6 +33,7 @@ words:
   - nosniff
   - opencode
   - pids
+  - postconditions
   - qwen
   - Qwik
   - rocm
