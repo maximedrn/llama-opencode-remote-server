@@ -14,10 +14,11 @@ words:
   - cuda
   - envfile
   - fastcgi
-  - finalizer
   - Filenaming
+  - finalizer
   - ggml
   - gguf
+  - Gibibyte
   - healthcheck
   - huggingface
   - keepalive
@@ -25,6 +26,7 @@ words:
   - lefthookrc
   - loglevel
   - memlock
+  - millis
   - mlock
   - mmap
   - mmproj

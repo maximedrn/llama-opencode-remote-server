@@ -5,34 +5,11 @@ import {
   type ComposeOptions,
   DockerUnavailableError,
 } from "@app/docker/docker.types.ts";
+import { composeArgs } from "@app/docker/docker.utils.ts";
 import { ProcessService } from "@app/process/process.service.ts";
 import type { CommandFailedError } from "@app/process/process.types.ts";
-import { Project } from "@app/project/project.constants.ts";
 import type { PlatformError } from "@effect/platform/Error";
 import { Effect } from "effect";
-
-/**
- * The project directory is pinned to the repository root so the `./nginx` and
- * `./secrets` bind mounts stay resolvable from `docker/`.
- */
-const composeArgs = (
-  backend: Backend,
-  options: ComposeOptions,
-): readonly string[] => [
-  Docker.compose.subcommand,
-  Docker.flags.projectDirectory,
-  Project.root,
-  ...(options.local === true
-    ? []
-    : [Docker.flags.profile, Docker.profiles.edge]),
-  Docker.flags.file,
-  Docker.compose.baseFile,
-  Docker.flags.file,
-  Docker.compose.backendFile(backend),
-  ...(options.local === true
-    ? [Docker.flags.file, Docker.compose.localFile]
-    : []),
-];
 
 class DockerService extends Effect.Service<DockerService>()("DockerService", {
   dependencies: [ProcessService.Default],
@@ -45,6 +22,17 @@ class DockerService extends Effect.Service<DockerService>()("DockerService", {
       options?: ComposeOptions,
     ): Effect.Effect<void, CommandFailedError | PlatformError> =>
       processes.run(Docker.cli, [
+        ...composeArgs(backend, options ?? {}),
+        ...args,
+      ]);
+
+    /** Same command as `compose`, but its output comes back as a value. */
+    const composeCaptured = (
+      backend: Backend,
+      args: readonly string[],
+      options?: ComposeOptions,
+    ): Effect.Effect<string, CommandFailedError | PlatformError> =>
+      processes.runCaptured(Docker.cli, [
         ...composeArgs(backend, options ?? {}),
         ...args,
       ]);
@@ -72,7 +60,7 @@ class DockerService extends Effect.Service<DockerService>()("DockerService", {
         }
       });
 
-    const api: DockerApi = { assertAvailable, compose };
+    const api: DockerApi = { assertAvailable, compose, composeCaptured };
     return api;
   }),
 }) {}

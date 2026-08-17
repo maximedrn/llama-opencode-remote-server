@@ -11,10 +11,13 @@ interface StackEnvInput {
   readonly threads: HostThreads;
 }
 
-/** Builds the `.env` Compose reads, with the thread counts measured on the host. */
+/**
+ * Builds the `.env` Compose reads, with the thread counts measured on the host.
+ * Image tags are left to the Compose files: each one already defaults to the
+ * build made for its accelerator, and `LLAMA_IMAGE` overrides all three.
+ */
 const makeStackEnv = (input: StackEnvInput): EnvRecord => ({
   ...Object.fromEntries(EnvFile.runtime),
-  ...Object.fromEntries(EnvFile.images),
   [EnvFile.keys.backend]: input.backend,
   [EnvFile.keys.modelAlias]: modelAlias(input.model.file),
   [EnvFile.keys.batchThreads]: String(input.threads.batch),

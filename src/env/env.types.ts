@@ -7,6 +7,8 @@ type EnvRecord = Record<string, string>;
 /** Everything the CLI reads back from `.env`, before `init` has necessarily run. */
 interface StackEnv {
   readonly backend: Option.Option<string>;
+  /** Extra Compose file every command layers on top of the shipped ones. */
+  readonly composeFile: Option.Option<string>;
   readonly localPort: Option.Option<string>;
   readonly modelAlias: Option.Option<string>;
   readonly modelDirectory: Option.Option<string>;
@@ -37,9 +39,20 @@ class EnvNotInitializedError extends Data.TaggedError(
   }
 }
 
+/** A malformed `.env` is a user error, not a defect: it is reported, not thrown. */
+class EnvReadError extends Data.TaggedError("EnvReadError")<{
+  readonly file: string;
+  readonly reason: string;
+}> {
+  override get message(): string {
+    return EnvFile.messages.readFailed(this.file, this.reason);
+  }
+}
+
 export {
   type ClientEnv,
   EnvNotInitializedError,
+  EnvReadError,
   type EnvRecord,
   type ModelLocation,
   type StackEnv,

@@ -1,35 +1,29 @@
-import { HardwareBackends } from "@app/backend/backend.constants";
+import { HardwareBackends } from "@app/backend/backend.constants.ts";
 import type { Backend } from "@app/backend/backend.types.ts";
 import { Docker } from "@app/docker/docker.constants.ts";
+import type { ComposeOptions } from "@app/docker/docker.types.ts";
+import { EnvFile } from "@app/env/env.constants.ts";
 import { makeStackEnv } from "@app/env/env.factory.ts";
-import type { ClientEnv, StackEnv } from "@app/env/env.types";
+import type { ModelLocation } from "@app/env/env.types.ts";
 import { Host } from "@app/host/host.constants.ts";
 import { makeModelSource } from "@app/model/model.factory.ts";
 import type { ModelSource, ResolvedModel } from "@app/model/model.types.ts";
 import { ModelFileMissingError } from "@app/model/model.types.ts";
 import { defaultModelDirectory } from "@app/model/model.utils.ts";
-import type { CommandFailedError } from "@app/process/process.types.ts";
 import { Secrets } from "@app/secret/secret.constants.ts";
 import { EmptyTunnelTokenError } from "@app/secret/secret.types.ts";
 import { Stack } from "@app/stack/stack.constants.ts";
 import type {
   InitError,
   PreflightError,
-  SmokeTestError,
   StackDependencies,
 } from "@app/stack/stack.interface.ts";
 import type { InitInput } from "@app/stack/stack.types.ts";
-import {
-  LlamaRequestError,
-  LlamaResponseError,
-} from "@app/stack/stack.types.ts";
-import type { SmokeTarget } from "@app/stack/stack.utils.ts";
-import { makeSmokeTarget } from "@app/stack/stack.utils.ts";
+import { InitAbortedError } from "@app/stack/stack.types.ts";
 import { Prompt } from "@effect/cli";
-import { HttpClientResponse } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import type { QuitException } from "@effect/platform/Terminal";
-import { Config, Console, Effect, Option, Redacted, Schema } from "effect";
+import { Config, Console, Effect, Option, Redacted } from "effect";
 
 /** Read from the process environment by Effect, never logged in clear text. */
 const tunnelTokenConfig: Config.Config<
@@ -44,7 +38,10 @@ const readTunnelToken = (): Effect.Effect<
 > =>
   Effect.gen(function* () {
     const fromEnvironment: Option.Option<Redacted.Redacted<string>> =
-      yield* Effect.orDie(tunnelTokenConfig);
+      yield* Effect.orElseSucceed(
+        tunnelTokenConfig,
+        (): Option.Option<Redacted.Redacted<string>> => Option.none(),
+      );
     const token: Redacted.Redacted<string> = Option.isSome(fromEnvironment)
       ? fromEnvironment.value
       : yield* Prompt.run(
@@ -77,6 +74,48 @@ const writeTunnelToken = (
           dependencies.secrets.write(Secrets.files.tunnelToken, token),
       );
 
+/** Everything a second `init` would replace on this machine. */
+const overwritePaths = (
+  dependencies: StackDependencies,
+  local: boolean,
+): readonly string[] => [
+  dependencies.path.join(Secrets.directory, Secrets.files.apiKey),
+  ...(local
+    ? []
+    : [dependencies.path.join(Secrets.directory, Secrets.files.tunnelToken)]),
+  EnvFile.path,
+];
+
+/**
+ * Asked before the model is resolved, so an aborted `init` has not downloaded
+ * gigabytes first. A key nobody wrote down cannot be recovered, hence the
+ * default answer: keep what is already there.
+ */
+const confirmOverwrite = (
+  dependencies: StackDependencies,
+  input: InitInput,
+): Effect.Effect<
+  void,
+  InitAbortedError | PlatformError | QuitException,
+  Prompt.Prompt.Environment
+> =>
+  Effect.gen(function* () {
+    if (input.force) return;
+    const existing: readonly string[] = yield* Effect.filter(
+      overwritePaths(dependencies, input.local),
+      (path: string): Effect.Effect<boolean, PlatformError> =>
+        dependencies.fileSystem.exists(path),
+    );
+    if (existing.length === 0) return;
+    const overwrite: boolean = yield* Prompt.run(
+      Prompt.confirm({
+        initial: false,
+        message: `Already initialized (${existing.join(", ")}). Overwrite?`,
+      }),
+    );
+    if (!overwrite) return yield* new InitAbortedError({ paths: existing });
+  });
+
 const reportInit = (
   dependencies: StackDependencies,
   backend: Backend,
@@ -103,6 +142,7 @@ const initialize = (
 ): Effect.Effect<void, InitError, Prompt.Prompt.Environment> =>
   Effect.gen(function* () {
     yield* dependencies.backends.assertHost(input.backend);
+    yield* confirmOverwrite(dependencies, input);
     const home: string = yield* dependencies.host.homeDirectory;
     const source: ModelSource = yield* makeModelSource({
       include: input.include,
@@ -153,10 +193,10 @@ const reportPlatformHints = (
 const preflight = (
   dependencies: StackDependencies,
   backend: Backend,
-  local: boolean,
+  options: ComposeOptions,
 ): Effect.Effect<void, PreflightError> =>
   Effect.gen(function* () {
-    const location: ResolvedModel = yield* dependencies.env.requireModel;
+    const location: ModelLocation = yield* dependencies.env.requireModel;
     const modelPath: string = dependencies.path.resolve(
       location.directory,
       location.file,
@@ -166,87 +206,14 @@ const preflight = (
     }
     // A local-only stack still needs the API key, but never the tunnel token.
     yield* dependencies.secrets.assertPresent(
-      local
+      options.local === true
         ? [Secrets.files.apiKey]
         : [Secrets.files.apiKey, Secrets.files.tunnelToken],
     );
     yield* dependencies.backends.assertDevices(backend);
-    yield* dependencies.docker.compose(backend, Docker.verbs.config, { local });
+    yield* dependencies.docker.compose(backend, Docker.verbs.config, options);
     yield* reportPlatformHints(dependencies, backend);
-    if (local) yield* Console.log(Stack.messages.localMode);
+    if (options.local === true) yield* Console.log(Stack.messages.localMode);
   });
 
-/** The answer must be an OpenAI chat completion, not merely an HTTP 200. */
-const completionResponseSchema = Schema.Struct({
-  choices: Schema.NonEmptyArray(
-    Schema.Struct({ message: Schema.Struct({ content: Schema.String }) }),
-  ),
-});
-
-type CompletionResponse = Schema.Schema.Type<typeof completionResponseSchema>;
-
-/**
- * Smoke test, no curl or PowerShell needed. The endpoint and credentials come
- * from `clients/client.env`, so this exercises whatever a client is pointed
- * at: guessing the mode from the files on disk only ever sent the request to
- * whatever else happened to listen on the loopback port.
- */
-const smokeTest = (
-  dependencies: StackDependencies,
-): Effect.Effect<void, SmokeTestError> =>
-  Effect.gen(function* () {
-    const client: ClientEnv = yield* dependencies.env.readClient;
-    const values: StackEnv = yield* dependencies.env.read;
-    const alias: string = Option.getOrElse(
-      values.modelAlias,
-      (): string => Stack.smoke.fallbackAlias,
-    );
-    const target: SmokeTarget = yield* makeSmokeTarget(client, alias);
-    const response: HttpClientResponse.HttpClientResponse =
-      yield* dependencies.httpClient.execute(target.request);
-    if (response.status >= Stack.smoke.errorStatus) {
-      const body: string = yield* response.text;
-      return yield* new LlamaRequestError({
-        body: body.slice(0, Stack.smoke.snippetLength),
-        status: response.status,
-      });
-    }
-    const completion: CompletionResponse =
-      yield* HttpClientResponse.schemaBodyJson(completionResponseSchema)(
-        response,
-      ).pipe(
-        Effect.mapError(
-          (cause: Error): LlamaResponseError =>
-            new LlamaResponseError({
-              endpoint: target.endpoint,
-              reason: cause.message.slice(0, Stack.smoke.snippetLength),
-            }),
-        ),
-      );
-    yield* Console.log(completion.choices[0].message.content);
-  });
-
-/**
- * llama.cpp reads its key once, at startup, so writing the file is only half
- * the rotation: the server keeps honouring the old key until it restarts.
- */
-const rotateApiKey = (
-  dependencies: StackDependencies,
-  backend: Backend,
-  local: boolean,
-): Effect.Effect<void, CommandFailedError | PlatformError> =>
-  Effect.gen(function* () {
-    const key: Redacted.Redacted<string> =
-      yield* dependencies.secrets.rotateApiKey;
-    yield* Console.log(Stack.messages.rotated);
-    yield* Console.log(
-      Stack.messages.rotatedFingerprint(dependencies.secrets.fingerprint(key)),
-    );
-    yield* Console.log(Stack.messages.restartingLlama);
-    yield* dependencies.docker.compose(backend, Docker.verbs.restartLlama, {
-      local,
-    });
-    yield* Console.log(Stack.messages.rotatedClients);
-  });
-
-export { initialize, preflight, rotateApiKey, smokeTest };
+export { initialize, overwritePaths, preflight };

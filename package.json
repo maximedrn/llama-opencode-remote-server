@@ -27,6 +27,7 @@
     "spell": "cspell \"**\" --no-progress",
     "spell:words": "cspell \"**\" --no-progress --unique --words-only",
     "stack": "bun run src/main.ts",
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "validate": "lefthook run check",
     "validate:compose": "lefthook run pre-push --all-files"

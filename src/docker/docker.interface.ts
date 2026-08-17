@@ -15,6 +15,12 @@ interface DockerApi {
     args: readonly string[],
     options?: ComposeOptions,
   ) => Effect.Effect<void, CommandFailedError | PlatformError>;
+  /** Runs a Compose command and returns its stdout instead of streaming it. */
+  readonly composeCaptured: (
+    backend: Backend,
+    args: readonly string[],
+    options?: ComposeOptions,
+  ) => Effect.Effect<string, CommandFailedError | PlatformError>;
 }
 
 export type { DockerApi };

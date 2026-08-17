@@ -36,6 +36,8 @@ const Model = {
       "the URL does not end with a .gguf file name. Link the file itself, or " +
       "download it first and pass --model-file.",
   },
+  /** Suffix of an in-flight download, renamed away once the transfer ends. */
+  partialExtension: ".part",
   /** Everything matching the pattern; shard `00001` sorts first. */
   searchPattern: (pattern: string): string => `**/${pattern}`,
 } as const;

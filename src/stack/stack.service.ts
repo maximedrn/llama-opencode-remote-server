@@ -1,30 +1,29 @@
-import { Backends } from "@app/backend/backend.constants.ts";
 import { BackendService } from "@app/backend/backend.service.ts";
-import type {
-  Backend,
-  UnsupportedBackendError,
-} from "@app/backend/backend.types.ts";
+import type { Backend } from "@app/backend/backend.types.ts";
 import { DockerService } from "@app/docker/docker.service.ts";
+import type { ComposeOptions } from "@app/docker/docker.types.ts";
 import { EnvService } from "@app/env/env.service.ts";
-import type { StackEnv } from "@app/env/env.types.ts";
+import type { EnvReadError } from "@app/env/env.types.ts";
 import { HostService } from "@app/host/host.service.ts";
 import { ModelService } from "@app/model/model.service.ts";
-import type { CommandFailedError } from "@app/process/process.types.ts";
 import { SecretService } from "@app/secret/secret.service.ts";
-import {
-  initialize,
-  preflight,
-  rotateApiKey,
-  smokeTest,
-} from "@app/stack/stack.helpers.ts";
+import { health, smokeTest } from "@app/stack/client.ts";
+import { doctor } from "@app/stack/doctor.ts";
+import { listModels } from "@app/stack/models.ts";
+import { resolveBackend, resolveComposeOptions } from "@app/stack/resolve.ts";
+import { rotateApiKey } from "@app/stack/rotate.ts";
+import { initialize, preflight } from "@app/stack/stack.helpers.ts";
 import type {
   BackendResolutionError,
   InitError,
   PreflightError,
+  RotateKeyError,
   StackApi,
   StackDependencies,
+  UninstallError,
 } from "@app/stack/stack.interface.ts";
-import type { InitInput } from "@app/stack/stack.types.ts";
+import type { DoctorResult, InitInput } from "@app/stack/stack.types.ts";
+import { uninstall } from "@app/stack/uninstall.ts";
 import type { Prompt } from "@effect/cli";
 import { FileSystem, HttpClient, Path } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
@@ -52,43 +51,44 @@ class StackService extends Effect.Service<StackService>()("StackService", {
       secrets: yield* SecretService,
     };
 
-    const backendFromEnv: Effect.Effect<Backend, BackendResolutionError> =
-      dependencies.env.read.pipe(
-        Effect.flatMap(
-          (env: StackEnv): Effect.Effect<Backend, UnsupportedBackendError> =>
-            dependencies.backends.parse(
-              Option.getOrElse(env.backend, (): string => Backends.fallback),
-            ),
-        ),
-      );
-
-    const resolveBackend = (
-      requested: Option.Option<Backend>,
-    ): Effect.Effect<Backend, BackendResolutionError> =>
-      Option.match(requested, {
-        onNone: (): Effect.Effect<Backend, BackendResolutionError> =>
-          backendFromEnv,
-        onSome: (backend: Backend): Effect.Effect<Backend> =>
-          Effect.succeed(backend),
-      }).pipe(Effect.tap(dependencies.backends.assertHost));
-
     const api: StackApi = {
+      composeOptions: (
+        local: boolean,
+        overrideFile: Option.Option<string>,
+      ): Effect.Effect<ComposeOptions, EnvReadError | PlatformError> =>
+        resolveComposeOptions(dependencies, local, overrideFile),
+      doctor: (
+        backend: Backend,
+        options: ComposeOptions,
+        client: boolean,
+      ): Effect.Effect<readonly DoctorResult[]> =>
+        doctor(dependencies, backend, options, client),
+      health: health(dependencies),
       init: (
         input: InitInput,
       ): Effect.Effect<void, InitError, Prompt.Prompt.Environment> =>
         initialize(dependencies, input),
+      models: listModels(dependencies),
       preflight: (
         backend: Backend,
-        local: boolean,
+        options: ComposeOptions,
       ): Effect.Effect<void, PreflightError> =>
-        preflight(dependencies, backend, local),
-      resolveBackend,
+        preflight(dependencies, backend, options),
+      resolveBackend: (
+        requested: Option.Option<Backend>,
+      ): Effect.Effect<Backend, BackendResolutionError> =>
+        resolveBackend(dependencies, requested),
       rotateKey: (
         backend: Backend,
-        local: boolean,
-      ): Effect.Effect<void, CommandFailedError | PlatformError> =>
-        rotateApiKey(dependencies, backend, local),
+        options: ComposeOptions,
+      ): Effect.Effect<void, RotateKeyError> =>
+        rotateApiKey(dependencies, backend, options),
       test: smokeTest(dependencies),
+      uninstall: (
+        backend: Backend,
+        options: ComposeOptions,
+      ): Effect.Effect<void, UninstallError, Prompt.Prompt.Environment> =>
+        uninstall(dependencies, backend, options),
     };
     return api;
   }),

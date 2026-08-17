@@ -5,7 +5,29 @@ import { CommandFailedError } from "@app/process/process.types.ts";
 import { Project } from "@app/project/project.constants.ts";
 import { Command, CommandExecutor } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
-import { Effect } from "effect";
+import { type Chunk, Effect, Stream } from "effect";
+
+/** Concatenates the raw chunks a piped stream produced, then decodes as UTF-8. */
+const decodeOutput = (chunks: Chunk.Chunk<Uint8Array>): string => {
+  const parts: readonly Uint8Array[] = Array.from(chunks);
+  const merged: Uint8Array = new Uint8Array(
+    parts.reduce(
+      (total: number, part: Uint8Array): number => total + part.byteLength,
+      0,
+    ),
+  );
+  parts.reduce((offset: number, part: Uint8Array): number => {
+    merged.set(part, offset);
+    return offset + part.byteLength;
+  }, 0);
+  return new TextDecoder().decode(merged);
+};
+
+/** Both pipes are drained while the process runs: a full pipe blocks it. */
+const collect = (
+  stream: Stream.Stream<Uint8Array, PlatformError>,
+): Effect.Effect<string, PlatformError> =>
+  Stream.runCollect(stream).pipe(Effect.map(decodeOutput));
 
 const buildCommand = (
   executable: string,
@@ -49,13 +71,44 @@ class ProcessService extends Effect.Service<ProcessService>()(
             ),
           );
 
+      const runCaptured = (
+        executable: string,
+        args: readonly string[],
+      ): Effect.Effect<string, CommandFailedError | PlatformError> =>
+        Effect.scoped(
+          Effect.gen(function* () {
+            const child: CommandExecutor.Process = yield* executor.start(
+              buildCommand(executable, args, true),
+            );
+            const captured: {
+              readonly exitCode: number;
+              readonly stderr: string;
+              readonly stdout: string;
+            } = yield* Effect.all(
+              {
+                exitCode: child.exitCode,
+                stderr: collect(child.stderr),
+                stdout: collect(child.stdout),
+              },
+              { concurrency: "unbounded" },
+            );
+            return captured.exitCode === ChildProcess.successExitCode
+              ? captured.stdout
+              : yield* new CommandFailedError({
+                  command: [executable, ...args].join(" "),
+                  exitCode: captured.exitCode,
+                  output: captured.stderr.slice(-ChildProcess.stderrTailLength),
+                });
+          }),
+        );
+
       const succeeds = (
         executable: string,
         args: readonly string[],
       ): Effect.Effect<boolean> =>
         run(executable, args, { quiet: true }).pipe(Effect.isSuccess);
 
-      const api: ProcessApi = { run, succeeds };
+      const api: ProcessApi = { run, runCaptured, succeeds };
       return api;
     }),
   },

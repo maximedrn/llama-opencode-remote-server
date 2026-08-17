@@ -4,6 +4,8 @@ const ChildProcess = {
     commandFailed: (command: string, exitCode: number): string =>
       `\`${command}\` exited with code ${exitCode}.`,
   },
+  /** Longest stderr snippet kept on a failed command. */
+  stderrTailLength: 4096,
   stdio: {
     inherit: "inherit",
     pipe: "pipe",

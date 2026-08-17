@@ -1,38 +1,36 @@
 import { Backends } from "@app/backend/backend.constants.ts";
-import type {
-  Backend,
-  IncompatibleHostError,
-  UnsupportedBackendError,
-} from "@app/backend/backend.types.ts";
+import type { Backend } from "@app/backend/backend.types.ts";
 import { DockerService } from "@app/docker/docker.service.ts";
-import type { DockerUnavailableError } from "@app/docker/docker.types.ts";
-import type { EnvNotInitializedError } from "@app/env/env.types.ts";
-import type { ModelFileMissingError } from "@app/model/model.types.ts";
-import type { CommandFailedError } from "@app/process/process.types.ts";
-import type { MissingSecretError } from "@app/secret/secret.types.ts";
+import type { ComposeOptions } from "@app/docker/docker.types.ts";
+import {
+  localOption,
+  logsCommand,
+  makeLifecycleCommand,
+  type StackTargetConfig,
+  statusCommand,
+  targetOptions,
+  withTarget,
+} from "@app/stack/commands.ts";
+import {
+  doctorCommand,
+  healthCommand,
+  modelsCommand,
+  uninstallCommand,
+} from "@app/stack/operations.ts";
 import { Stack } from "@app/stack/stack.constants.ts";
 import type {
-  BackendResolutionError,
   InitError,
+  LifecycleError,
+  ListModelsError,
   PreflightError,
+  RotateKeyError,
   SmokeTestError,
 } from "@app/stack/stack.interface.ts";
 import { StackService } from "@app/stack/stack.service.ts";
-import type { InitInput } from "@app/stack/stack.types.ts";
+import type { DoctorFailedError, InitInput } from "@app/stack/stack.types.ts";
+import type { Prompt } from "@effect/cli";
 import { Command, Options } from "@effect/cli";
-import type { Prompt } from "@effect/cli/Prompt";
-import type {
-  BadArgument,
-  PlatformError,
-  SystemError,
-} from "@effect/platform/Error";
-import { Effect, Option } from "effect";
-
-/** Shared by preflight and every lifecycle command. */
-interface StackTargetConfig {
-  readonly backend: Option.Option<Backend>;
-  readonly local: boolean;
-}
+import { Effect, type Option } from "effect";
 
 /** Commands that take neither options nor arguments. */
 type EmptyConfig = Record<string, never>;
@@ -46,6 +44,7 @@ interface StackCommandConfig {
 
 type InitOptions = {
   readonly backend: Options.Options<Backend>;
+  readonly force: Options.Options<boolean>;
   readonly include: Options.Options<Option.Option<string>>;
   readonly local: Options.Options<boolean>;
   readonly modelDirectory: Options.Options<Option.Option<string>>;
@@ -54,31 +53,13 @@ type InitOptions = {
   readonly repository: Options.Options<Option.Option<string>>;
 };
 
-interface LifecycleDefinition<Name extends string> {
-  readonly args: readonly string[];
-  readonly description: string;
-  readonly name: Name;
-}
-
-type LifecycleError =
-  | BackendResolutionError
-  | CommandFailedError
-  | DockerUnavailableError
-  | PlatformError;
-
-const localOption: Options.Options<boolean> = Options.boolean("local").pipe(
-  Options.withDescription(Stack.descriptions.local),
-);
-
-const backendOption: Options.Options<Option.Option<Backend>> = Options.choice(
-  "backend",
-  Backends.list,
-).pipe(Options.withDescription(Stack.descriptions.backend), Options.optional);
-
 const initOptions: InitOptions = {
   backend: Options.choice("backend", Backends.list).pipe(
     Options.withDefault<Backend>(Backends.fallback),
     Options.withDescription(Stack.descriptions.backend),
+  ),
+  force: Options.boolean("force").pipe(
+    Options.withDescription(Stack.descriptions.force),
   ),
   include: Options.text("hf-include").pipe(
     Options.withDescription(Stack.descriptions.hfInclude),
@@ -103,39 +84,9 @@ const initOptions: InitOptions = {
   ),
 };
 
-const withBackend = <E>(
-  requested: Option.Option<Backend>,
-  use: (backend: Backend) => Effect.Effect<void, E>,
-): Effect.Effect<void, BackendResolutionError | E, StackService> =>
-  Effect.gen(function* () {
-    const stack: StackService = yield* StackService;
-    yield* use(yield* stack.resolveBackend(requested));
-  });
-
-const makeLifecycleCommand = <Name extends string>(
-  lifecycle: LifecycleDefinition<Name>,
-): Command.Command<
-  Name,
-  DockerService | StackService,
-  LifecycleError,
-  StackTargetConfig
-> =>
-  Command.make(
-    lifecycle.name,
-    { backend: backendOption, local: localOption },
-    (config: StackTargetConfig) =>
-      Effect.gen(function* () {
-        const docker: DockerService = yield* DockerService;
-        yield* docker.assertAvailable;
-        yield* withBackend(config.backend, (target: Backend) =>
-          docker.compose(target, lifecycle.args, { local: config.local }),
-        );
-      }),
-  ).pipe(Command.withDescription(lifecycle.description));
-
 const initCommand: Command.Command<
   "init",
-  StackService | Prompt.Environment,
+  Prompt.Prompt.Environment | StackService,
   InitError,
   InitInput
 > = Command.make("init", initOptions, (input: InitInput) =>
@@ -145,25 +96,14 @@ const initCommand: Command.Command<
 const preflightCommand: Command.Command<
   "preflight",
   StackService,
-  | IncompatibleHostError
-  | BadArgument
-  | SystemError
-  | UnsupportedBackendError
-  | MissingSecretError
-  | EnvNotInitializedError
-  | CommandFailedError
-  | ModelFileMissingError,
+  LifecycleError | PreflightError,
   StackTargetConfig
-> = Command.make(
-  "preflight",
-  { backend: backendOption, local: localOption },
-  (config: StackTargetConfig) =>
-    Effect.gen(function* () {
-      const stack: StackService = yield* StackService;
-      yield* withBackend(config.backend, (target: Backend) =>
-        stack.preflight(target, config.local),
-      );
-    }),
+> = Command.make("preflight", targetOptions, (config: StackTargetConfig) =>
+  withTarget(config, (backend: Backend, options: ComposeOptions) =>
+    Effect.flatMap(StackService, (stack: StackService) =>
+      stack.preflight(backend, options),
+    ),
+  ),
 ).pipe(Command.withDescription(Stack.descriptions.preflight));
 
 const testCommand: Command.Command<
@@ -178,29 +118,29 @@ const testCommand: Command.Command<
 const rotateKeyCommand: Command.Command<
   "rotate-key",
   StackService,
-  LifecycleError,
+  LifecycleError | RotateKeyError,
   StackTargetConfig
-> = Command.make(
-  "rotate-key",
-  { backend: backendOption, local: localOption },
-  (config: StackTargetConfig) =>
+> = Command.make("rotate-key", targetOptions, (config: StackTargetConfig) =>
+  withTarget(config, (backend: Backend, options: ComposeOptions) =>
     Effect.flatMap(StackService, (stack: StackService) =>
-      withBackend(config.backend, (target: Backend) =>
-        stack.rotateKey(target, config.local),
-      ),
+      stack.rotateKey(backend, options),
     ),
+  ),
 ).pipe(Command.withDescription(Stack.descriptions.rotateKey));
 
 /** Every failure any subcommand can raise. */
 type StackCommandError =
+  | DoctorFailedError
   | InitError
   | LifecycleError
+  | ListModelsError
   | PreflightError
+  | RotateKeyError
   | SmokeTestError;
 
 const stackCommand: Command.Command<
   "stack",
-  DockerService | Prompt.Environment | StackService,
+  DockerService | Prompt.Prompt.Environment | StackService,
   StackCommandError,
   StackCommandConfig
 > = Command.make(Stack.cli.name).pipe(
@@ -209,8 +149,14 @@ const stackCommand: Command.Command<
     initCommand,
     preflightCommand,
     ...Stack.lifecycle.map(makeLifecycleCommand),
+    statusCommand,
+    logsCommand,
     testCommand,
+    healthCommand,
+    modelsCommand,
+    doctorCommand,
     rotateKeyCommand,
+    uninstallCommand,
   ]),
 );
 

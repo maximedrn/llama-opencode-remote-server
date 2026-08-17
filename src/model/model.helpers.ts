@@ -69,7 +69,20 @@ const resolveLocalFile = (
     };
   });
 
-/** Streams the download straight to disk: model files do not fit in memory. */
+/** Deleting a file that is not there is the expected case, never a failure. */
+const removeQuietly = (
+  dependencies: ModelDependencies,
+  path: string,
+): Effect.Effect<void> =>
+  dependencies.fileSystem
+    .remove(path)
+    .pipe(Effect.catchAll((): Effect.Effect<void> => Effect.void));
+
+/**
+ * Streams the download straight to disk: model files do not fit in memory.
+ * It lands on a `.part` file renamed only once the transfer completed, so an
+ * interrupted download never leaves a truncated `.gguf` behind to be served.
+ */
 const resolveDownloadUrl = (
   dependencies: ModelDependencies,
   directory: string,
@@ -85,19 +98,27 @@ const resolveDownloadUrl = (
     }
     const file: string = named.value;
     const target: string = dependencies.path.join(directory, file);
+    const partial: string = `${target}${Model.partialExtension}`;
     yield* dependencies.fileSystem.makeDirectory(directory, {
       recursive: true,
     });
+    yield* removeQuietly(dependencies, partial);
     yield* Console.log(Model.messages.downloadingUrl(source.url, target));
-    yield* Effect.tryPromise({
-      catch: (cause: unknown): ModelDownloadError =>
-        new ModelDownloadError({ reason: String(cause), url: source.url }),
-      try: async (): Promise<number> => {
-        const response: Response = await fetch(source.url);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        return await Bun.write(target, response);
-      },
-    });
+    yield* Effect.ensuring(
+      Effect.gen(function* () {
+        yield* Effect.tryPromise({
+          catch: (cause: unknown): ModelDownloadError =>
+            new ModelDownloadError({ reason: String(cause), url: source.url }),
+          try: async (): Promise<number> => {
+            const response: Response = await fetch(source.url);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return await Bun.write(partial, response);
+          },
+        });
+        yield* dependencies.fileSystem.rename(partial, target);
+      }),
+      removeQuietly(dependencies, partial),
+    );
     return { directory: toPosixPath(directory), file };
   });
 

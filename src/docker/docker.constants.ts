@@ -26,15 +26,27 @@ const Docker = {
     edge: "edge",
   },
   services: {
+    cloudflared: "cloudflared",
+    heartbeat: "heartbeat",
     llama: "llama",
+    proxy: "proxy",
+  },
+  /** Compose health strings, as `docker compose ps --format json` reports them. */
+  states: {
+    healthy: "healthy",
+    running: "running",
   },
   verbs: {
     config: ["config", "--quiet"],
+    down: ["down"],
+    logs: (service: string): readonly string[] => ["logs", "-f", service],
+    psJson: ["ps", "--format", "json", "--all"],
     /**
      * Compose bind mounts a `file:` secret, so the container sees the new key
-     * as soon as it is written; only llama.cpp has to read it again.
+     * as soon as it is written; llama.cpp has to read it again, and the
+     * heartbeat restarts with it so its health reflects the new process.
      */
-    restartLlama: ["restart", "llama"],
+    restartLlama: ["restart", "llama", "heartbeat"],
   },
 } as const;
 

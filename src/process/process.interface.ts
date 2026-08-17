@@ -12,6 +12,11 @@ interface ProcessApi {
     args: readonly string[],
     options?: RunOptions,
   ) => Effect.Effect<void, CommandFailedError | PlatformError>;
+  /** Runs a piped command, returning stdout and keeping stderr on failure. */
+  readonly runCaptured: (
+    executable: string,
+    args: readonly string[],
+  ) => Effect.Effect<string, CommandFailedError | PlatformError>;
   /** Runs a command silently, reporting success even when the binary is absent. */
   readonly succeeds: (
     executable: string,

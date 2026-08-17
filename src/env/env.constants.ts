@@ -22,21 +22,22 @@ const ClientFile = {
 
 /** Everything written to, or read from, the Compose `.env` file. */
 const EnvFile = {
-  /**
-   * Rolling image tags on purpose: the stack always runs the latest published
-   * images. Pin them in `.env` when a deployment has to be reproducible.
-   */
-  images: [
-    ["CLOUDFLARED_IMAGE", "cloudflare/cloudflared:latest"],
-    ["LLAMA_AMD_IMAGE", "ghcr.io/ggml-org/llama.cpp:server-rocm"],
-    ["LLAMA_CPU_IMAGE", "ghcr.io/ggml-org/llama.cpp:server"],
-    ["LLAMA_NVIDIA_IMAGE", "ghcr.io/ggml-org/llama.cpp:server-cuda"],
-    ["PROXY_IMAGE", "nginxinc/nginx-unprivileged:latest"],
-  ],
   keys: {
     backend: "BACKEND",
     batchThreads: "THREADS_BATCH",
+    /**
+     * Extra Compose file layered after the backend one. Not named
+     * `COMPOSE_FILE`: Docker Compose reads that variable from `.env` itself and
+     * would replace the whole file set with it.
+     */
+    composeFile: "COMPOSE_OVERRIDE_FILE",
     generationThreads: "THREADS",
+    /**
+     * Single llama.cpp image for every backend: each Compose file falls back to
+     * the tag built for its accelerator, so this stays empty unless a specific
+     * build has to be pinned.
+     */
+    llamaImage: "LLAMA_IMAGE",
     localPort: "LOCAL_PORT",
     modelAlias: "LLAMA_ALIAS",
     modelDirectory: "MODEL_DIRECTORY",
@@ -45,6 +46,8 @@ const EnvFile = {
   messages: {
     notInitialized: (missing: string): string =>
       `Run \`init\` first: .env is missing ${missing}.`,
+    readFailed: (file: string, reason: string): string =>
+      `Could not read ${file}: ${reason}`,
   },
   path: projectPath(".env"),
   /** llama.cpp runtime profile written on `init`; tune it in `.env` afterwards. */
@@ -55,12 +58,15 @@ const EnvFile = {
     ["BATCH_SIZE", "2048"],
     ["CACHE_TYPE_K", "q8_0"],
     ["CACHE_TYPE_V", "q8_0"],
+    ["COMPOSE_OVERRIDE_FILE", ""],
     ["CTX_SIZE", "262144"],
     ["FIT_TARGET", "768"],
     ["FLASH_ATTN", "auto"],
+    ["LLAMA_IMAGE", ""],
     ["LOAD_MODE", "mmap+mlock"],
     ["NVIDIA_DEVICE", "CUDA0"],
-    ["SPEC_DRAFT_N_MAX", "64"],
+    ["SPEC_DRAFT_N_MAX", "3"],
+    ["SPEC_DRAFT_P_MAX", "0.7"],
     ["UBATCH_SIZE", "512"],
   ],
 } as const;
