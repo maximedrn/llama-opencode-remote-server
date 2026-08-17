@@ -171,6 +171,7 @@ const initialize = (
     yield* dependencies.env.write(
       makeStackEnv({
         backend: input.backend,
+        existing: yield* dependencies.env.readRaw,
         keepalive: input.keepalive,
         model,
         threads: dependencies.host.threads,

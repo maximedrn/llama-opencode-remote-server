@@ -14,6 +14,8 @@ interface EnvApi {
   readonly read: Effect.Effect<StackEnv, EnvReadError | PlatformError>;
   /** Reads `clients/client.env`; empty values come back as `None`. */
   readonly readClient: Effect.Effect<ClientEnv, EnvReadError | PlatformError>;
+  /** Raw `KEY=value` map of `.env`, empty when the file is not there yet. */
+  readonly readRaw: Effect.Effect<EnvRecord, PlatformError>;
   /** Reads the model location, failing when `init` has not written it yet. */
   readonly requireModel: Effect.Effect<
     ModelLocation,

@@ -38,6 +38,7 @@ const clientOnlyEnv = (baseUrl: string): EnvApi => ({
     apiKey: Option.some("llama_test"),
     baseUrl: Option.some(baseUrl),
   } satisfies ClientEnv),
+  readRaw: Effect.succeed({}),
   requireModel: Effect.fail(
     new EnvNotInitializedError({ missing: "MODEL_DIRECTORY, MODEL_FILE" }),
   ) as Effect.Effect<ModelLocation, EnvNotInitializedError>,

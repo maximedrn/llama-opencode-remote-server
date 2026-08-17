@@ -2,6 +2,9 @@ services:
   llama:
     image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}
     restart: unless-stopped
+    # `never` for an image built on this machine: `pull` then skips it instead
+    # of failing on a repository that does not exist.
+    pull_policy: ${LLAMA_PULL_POLICY:-missing}
     read_only: true
     cap_drop:
       - ALL

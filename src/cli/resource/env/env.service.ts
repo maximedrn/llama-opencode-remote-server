@@ -1,9 +1,10 @@
 import { ClientFile, EnvFile } from "@app/cli/resource/env/env.constants.ts";
+import { readFile, readRawFile } from "@app/cli/resource/env/env.helpers.ts";
 import type { EnvApi } from "@app/cli/resource/env/env.interface.ts";
 import {
   type ClientEnv,
   EnvNotInitializedError,
-  EnvReadError,
+  type EnvReadError,
   type EnvRecord,
   type ModelLocation,
   type StackEnv,
@@ -13,58 +14,20 @@ import {
   missingKeys,
   stackEnvConfig,
 } from "@app/cli/resource/env/env.utils.ts";
-import { FileSystem, PlatformConfigProvider } from "@effect/platform";
+import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
-import type { Config } from "effect";
-import { ConfigProvider, Effect, Option } from "effect";
+import { Effect, Option } from "effect";
 import { stringify } from "envfile";
 
 class EnvService extends Effect.Service<EnvService>()("EnvService", {
   effect: Effect.gen(function* () {
     const fileSystem: FileSystem.FileSystem = yield* FileSystem.FileSystem;
 
-    /** An absent file is not an error: the caller decides what it needs. */
-    const provider = (
-      path: string,
-    ): Effect.Effect<ConfigProvider.ConfigProvider, PlatformError> =>
-      fileSystem
-        .exists(path)
-        .pipe(
-          Effect.flatMap(
-            (
-              exists: boolean,
-            ): Effect.Effect<ConfigProvider.ConfigProvider, PlatformError> =>
-              exists
-                ? PlatformConfigProvider.fromDotEnv(path).pipe(
-                    Effect.provideService(FileSystem.FileSystem, fileSystem),
-                  )
-                : Effect.succeed(ConfigProvider.fromMap(new Map())),
-          ),
-        );
-
-    const readFile = <A>(
-      path: string,
-      config: Config.Config<A>,
-    ): Effect.Effect<A, EnvReadError | PlatformError> =>
-      provider(path).pipe(
-        Effect.flatMap(
-          (
-            source: ConfigProvider.ConfigProvider,
-          ): Effect.Effect<A, EnvReadError> =>
-            Effect.withConfigProvider(config, source).pipe(
-              Effect.mapError(
-                (cause: unknown): EnvReadError =>
-                  new EnvReadError({ file: path, reason: String(cause) }),
-              ),
-            ),
-        ),
-      );
-
     const read: Effect.Effect<StackEnv, EnvReadError | PlatformError> =
-      readFile(EnvFile.path, stackEnvConfig);
+      readFile(fileSystem, EnvFile.path, stackEnvConfig);
 
     const readClient: Effect.Effect<ClientEnv, EnvReadError | PlatformError> =
-      readFile(ClientFile.path, clientEnvConfig);
+      readFile(fileSystem, ClientFile.path, clientEnvConfig);
 
     const requireModel: Effect.Effect<
       ModelLocation,
@@ -88,7 +51,13 @@ class EnvService extends Effect.Service<EnvService>()("EnvService", {
     const write = (values: EnvRecord): Effect.Effect<void, PlatformError> =>
       fileSystem.writeFileString(EnvFile.path, stringify(values));
 
-    const api: EnvApi = { read, readClient, requireModel, write };
+    const api: EnvApi = {
+      read,
+      readClient,
+      readRaw: readRawFile(fileSystem),
+      requireModel,
+      write,
+    };
     return api;
   }),
 }) {}

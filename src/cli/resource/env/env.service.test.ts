@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { EnvFile } from "@app/cli/resource/env/env.constants.ts";
 import { makeStackEnv } from "@app/cli/resource/env/env.factory.ts";
-import type { ClientEnv, StackEnv } from "@app/cli/resource/env/env.types.ts";
+import type {
+  ClientEnv,
+  EnvRecord,
+  StackEnv,
+} from "@app/cli/resource/env/env.types.ts";
 import {
   cleanStackEnv,
   clientEnvConfig,
@@ -111,6 +115,7 @@ describe("makeStackEnv", () => {
     expect(
       makeStackEnv({
         backend: "cpu",
+        existing: {},
         keepalive: false,
         model: { directory: "/models", file: "phi-3-7b.gguf" },
         threads: { batch: 8, generation: 4 },
@@ -125,5 +130,39 @@ describe("makeStackEnv", () => {
       [EnvFile.keys.modelDirectory]: "/models",
       [EnvFile.keys.modelFile]: "phi-3-7b.gguf",
     });
+  });
+});
+
+describe("makeStackEnv merging", () => {
+  test("keeps a pinned image and every other hand-tuned value", () => {
+    const written: EnvRecord = makeStackEnv({
+      backend: "amd",
+      existing: {
+        [EnvFile.keys.llamaImage]: "my-llama:custom",
+        // biome-ignore lint/style/useNamingConvention: Compose variable name.
+        CTX_SIZE: "131072",
+      },
+      keepalive: false,
+      model: { directory: "/models", file: "phi.gguf" },
+      threads: { batch: 8, generation: 4 },
+    });
+    expect(written[EnvFile.keys.llamaImage]).toBe("my-llama:custom");
+    expect(written.CTX_SIZE).toBe("131072");
+  });
+
+  test("still refreshes the variables init owns", () => {
+    const written: EnvRecord = makeStackEnv({
+      backend: "amd",
+      existing: {
+        [EnvFile.keys.backend]: "cpu",
+        [EnvFile.keys.modelFile]: "stale.gguf",
+      },
+      keepalive: true,
+      model: { directory: "/models", file: "phi.gguf" },
+      threads: { batch: 8, generation: 4 },
+    });
+    expect(written[EnvFile.keys.backend]).toBe("amd");
+    expect(written[EnvFile.keys.modelFile]).toBe("phi.gguf");
+    expect(written[EnvFile.keys.keepalive]).toBe(EnvFile.enabled);
   });
 });
