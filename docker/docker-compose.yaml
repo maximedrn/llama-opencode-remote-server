@@ -1,13 +1,55 @@
 name: llama-opencode-remote-server
 
 services:
+  # Liveness for the whole stack: the llama.cpp images do not all ship an HTTP
+  # client, so their own healthcheck cannot be relied on. This container polls
+  # the server, logs every transition (and the build actually running), and its
+  # health is what the proxy and `rotate-key` wait on.
+  heartbeat:
+    build:
+      context: .
+      dockerfile: docker/heartbeat.Dockerfile
+    image: ${HEARTBEAT_IMAGE:-llama-opencode-remote-server/heartbeat:local}
+    restart: unless-stopped
+    depends_on:
+      llama:
+        condition: service_started
+    read_only: true
+    cap_drop:
+      - ALL
+    pids_limit: 64
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    secrets:
+      - llama_api_key
+    environment:
+      HEARTBEAT_INTERVAL_MS: ${HEARTBEAT_INTERVAL_MS:-15000}
+      HEARTBEAT_TIMEOUT_MS: ${HEARTBEAT_TIMEOUT_MS:-5000}
+      LLAMA_API_KEY_FILE: /run/secrets/llama_api_key
+      LLAMA_HEALTH_URL: http://llama:8080/health
+      LLAMA_PROPS_URL: http://llama:8080/props
+    healthcheck:
+      test:
+        - "CMD"
+        - "/app/heartbeat"
+        - "check"
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      # A cold model load takes minutes; the stack is not unhealthy meanwhile.
+      start_period: 300s
+    networks:
+      - backend
+
   proxy:
     profiles:
       - edge
     image: ${PROXY_IMAGE:-nginxinc/nginx-unprivileged:latest}
     restart: unless-stopped
     depends_on:
-      llama:
+      heartbeat:
         condition: service_healthy
     read_only: true
     cap_drop:

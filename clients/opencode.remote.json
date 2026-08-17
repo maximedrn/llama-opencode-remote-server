@@ -13,10 +13,12 @@
       "options": {
         "apiKey": "{env:LLAMA_API_KEY}",
         "baseURL": "{env:LLAMA_BASE_URL}/v1",
+        "chunkTimeout": 3600000,
         "headers": {
           "CF-Access-Client-Id": "{env:CLOUDFLARE_ACCESS_CLIENT_ID}",
           "CF-Access-Client-Secret": "{env:CLOUDFLARE_ACCESS_CLIENT_SECRET}"
-        }
+        },
+        "timeout": 3600000
       }
     }
   }

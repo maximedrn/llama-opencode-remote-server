@@ -1,6 +1,6 @@
 services:
   llama:
-    image: ${LLAMA_NVIDIA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
+    image: ${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server-cuda}
     restart: unless-stopped
     read_only: true
     cap_drop:
@@ -24,16 +24,6 @@ services:
         read_only: true
     secrets:
       - llama_api_key
-    healthcheck:
-      test:
-        - "CMD"
-        - "curl"
-        - "-fsS"
-        - "http://127.0.0.1:8080/health"
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 180s
     deploy:
       resources:
         reservations:
@@ -80,7 +70,9 @@ services:
       - --spec-type
       - ngram-simple
       - --spec-draft-n-max
-      - ${SPEC_DRAFT_N_MAX:-64}
+      - ${SPEC_DRAFT_N_MAX:-3}
+      - --spec-draft-p-max
+      - ${SPEC_DRAFT_P_MAX:-0.7}
       - --batch-size
       - ${BATCH_SIZE:-2048}
       - --ubatch-size

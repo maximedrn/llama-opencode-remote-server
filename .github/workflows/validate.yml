@@ -35,3 +35,6 @@ jobs:
 
       - name: Compose validation
         run: bun run validate:compose
+
+      - name: Heartbeat image build
+        run: docker build --file docker/heartbeat.Dockerfile .

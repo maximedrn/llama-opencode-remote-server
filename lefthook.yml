@@ -15,6 +15,9 @@ pre-commit:
     typecheck:
       glob: "*.ts"
       run: bun run typecheck
+    test:
+      glob: "*.ts"
+      run: bun test
     spell:
       run: bun run spell
 
@@ -26,6 +29,8 @@ check:
       run: bun run lint
     typecheck:
       run: bun run typecheck
+    test:
+      run: bun test
     spell:
       run: bun run spell
 
@@ -39,3 +44,5 @@ pre-push:
       run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.nvidia.yaml config --quiet
     compose-amd:
       run: docker compose --project-directory . --env-file .env.example -f docker/docker-compose.yaml -f docker/docker-compose.amd.yaml config --quiet
+    heartbeat-image:
+      run: docker build --quiet --file docker/heartbeat.Dockerfile . >/dev/null

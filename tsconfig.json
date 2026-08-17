@@ -16,5 +16,5 @@
     "types": ["bun"],
     "verbatimModuleSyntax": true
   },
-  "include": ["src"]
+  "include": ["build.ts", "src"]
 }

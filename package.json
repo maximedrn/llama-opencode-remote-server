@@ -19,6 +19,7 @@
   "name": "llama-opencode-remote-server",
   "private": true,
   "scripts": {
+    "build:heartbeat": "bun build.ts",
     "format": "biome format --write .",
     "format:check": "biome format",
     "lint": "biome check",
