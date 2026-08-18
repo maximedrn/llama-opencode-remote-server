@@ -85,6 +85,13 @@ const Heartbeat = {
   service: "heartbeat",
   /** Media type marking an answer this process has to keep flowing. */
   streamContentType: "text/event-stream",
+  /**
+   * Once the SSE answer is committed, its status is already sent: a failing
+   * upstream can only be reported inside the stream, as an error event a
+   * client understands, followed by the end-of-stream marker it waits for.
+   */
+  streamError: (reason: string): string =>
+    `data: ${JSON.stringify({ error: { message: reason } })}\n\ndata: [DONE]\n\n`,
   /** Field of the OpenAI request asking for a streamed answer. */
   streamField: "stream",
   upstreamStatus: {

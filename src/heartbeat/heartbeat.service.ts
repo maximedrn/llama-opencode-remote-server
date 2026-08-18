@@ -3,45 +3,23 @@ import type {
   HeartbeatConfig,
   Host,
   ProbeResult,
-  UpstreamRequest,
 } from "@app/heartbeat/heartbeat.types.ts";
-import type { Server } from "bun";
 import {
-  Duration,
-  Effect,
-  Option,
-  Predicate,
-  Runtime,
-  Schedule,
-  Schema,
-  Stream,
-} from "effect";
-
-/** A completion asking for a stream is the only one worth holding open. */
-const streamRequestSchema = Schema.parseJson(
-  Schema.Struct({ stream: Schema.Boolean }),
-);
-
-const shorten = (reason: string): string =>
-  reason.slice(0, Heartbeat.reasonLength);
-
-const describe = (cause: unknown): string =>
-  shorten(Predicate.isError(cause) ? cause.message : String(cause));
+  describe,
+  encode,
+  isStream,
+  relayHeaders,
+  shorten,
+  streamHeaders,
+  upstreamRequest,
+  wantsStream,
+} from "@app/heartbeat/heartbeat.utils.ts";
+import type { Server } from "bun";
+import { Duration, Effect, Option, Runtime, Schedule, Stream } from "effect";
 
 const log = (host: Host, effect: Effect.Effect<void>): void => {
   Runtime.runFork(host)(effect);
 };
-
-const isStream = (response: Response): boolean =>
-  (response.headers.get(Heartbeat.headers.contentType) ?? "").includes(
-    Heartbeat.streamContentType,
-  );
-
-const wantsStream = (body: string): boolean =>
-  Option.match(Schema.decodeUnknownOption(streamRequestSchema)(body), {
-    onNone: (): boolean => false,
-    onSome: (request: { readonly stream: boolean }): boolean => request.stream,
-  });
 
 const bytes = (source: ReadableStream<Uint8Array>): Stream.Stream<Uint8Array> =>
   Stream.fromReadableStream({
@@ -57,7 +35,7 @@ const bytes = (source: ReadableStream<Uint8Array>): Stream.Stream<Uint8Array> =>
  * tunnel, the proxy and the client SDK all keep the connection open.
  */
 const comments = (config: HeartbeatConfig): Stream.Stream<Uint8Array> =>
-  Stream.repeatValue(new TextEncoder().encode(Heartbeat.keepAliveComment)).pipe(
+  Stream.repeatValue(encode(Heartbeat.keepAliveComment)).pipe(
     Stream.schedule(Schedule.spaced(Duration.millis(config.keepAliveMs))),
     Stream.tap(
       (): Effect.Effect<void> => Effect.logDebug(Heartbeat.messages.keepAlive),
@@ -80,70 +58,39 @@ const withKeepAlive = (
   );
 
 /**
- * `timeout: false` is what makes this process work at all: Bun's fetch gives
- * up after 300 seconds of silence, and prompt processing on a long context is
- * silent for longer than that. Without it the front drops the connection,
- * llama.cpp sees its peer disappear and cancels the very task it was asked to
- * protect. Measured, not assumed: the default cut at 300s, `false` held 400s.
- *
- * The client's own signal is forwarded so a client that gives up frees the
- * slot instead of leaving llama.cpp generating for nobody.
+ * The answer, once it finally arrives. A rejected upstream cannot become a
+ * status code any more — the SSE answer was committed minutes ago — so it is
+ * logged and told to the client inside the stream it is already reading,
+ * instead of escaping as an unhandled rejection.
  */
-const upstreamRequest = (request: Request, body: string): UpstreamRequest => ({
-  body: body.length > 0 ? body : undefined,
-  headers: forwardHeaders(request),
-  method: request.method,
-  redirect: "manual",
-  signal: request.signal,
-  timeout: false,
-});
-
-/** Hop-by-hop headers belong to one connection, never to the next one. */
-const forwardHeaders = (request: Request): Headers => {
-  const headers: Headers = new Headers(request.headers);
-  for (const name of Heartbeat.hopByHopHeaders) headers.delete(name);
-  return headers;
-};
-
-const relayHeaders = (response: Response): Headers => {
-  const headers: Headers = new Headers(response.headers);
-  if (isStream(response)) {
-    headers.set(
-      Heartbeat.headers.cacheControl[0],
-      Heartbeat.headers.cacheControl[1],
-    );
-    headers.set(
-      Heartbeat.headers.noBuffering[0],
-      Heartbeat.headers.noBuffering[1],
-    );
-  }
-  return headers;
-};
-
-const streamHeaders = (): Headers => {
-  const headers: Headers = new Headers();
-  headers.set(Heartbeat.headers.contentType, Heartbeat.streamContentType);
-  headers.set(
-    Heartbeat.headers.cacheControl[0],
-    Heartbeat.headers.cacheControl[1],
-  );
-  headers.set(
-    Heartbeat.headers.noBuffering[0],
-    Heartbeat.headers.noBuffering[1],
-  );
-  return headers;
-};
-
-/** The upstream answer, once it finally arrives, as a stream of its bytes. */
-const pending = (upstream: Promise<Response>): Stream.Stream<Uint8Array> =>
+const pending = (
+  host: Host,
+  upstream: Promise<Response>,
+): Stream.Stream<Uint8Array> =>
   Stream.unwrap(
-    Effect.promise((): Promise<Response> => upstream).pipe(
+    Effect.tryPromise({
+      catch: (cause: unknown): string => describe(cause),
+      try: (): Promise<Response> => upstream,
+    }).pipe(
       Effect.map(
         (response: Response): Stream.Stream<Uint8Array> =>
           Option.match(Option.fromNullable(response.body), {
             onNone: (): Stream.Stream<Uint8Array> => Stream.empty,
             onSome: bytes,
           }),
+      ),
+      Effect.catchAll(
+        (reason: string): Effect.Effect<Stream.Stream<Uint8Array>> => {
+          log(
+            host,
+            Effect.logError(Heartbeat.messages.upstreamFailed).pipe(
+              Effect.annotateLogs({ reason }),
+            ),
+          );
+          return Effect.succeed(
+            Stream.make(encode(Heartbeat.streamError(reason))),
+          );
+        },
       ),
     ),
   );
@@ -170,7 +117,7 @@ const commit = (
       }),
     ),
   );
-  return new Response(withKeepAlive(host, config, pending(upstream)), {
+  return new Response(withKeepAlive(host, config, pending(host, upstream)), {
     headers: streamHeaders(),
     status: Heartbeat.upstreamStatus.ok,
   });
@@ -364,4 +311,4 @@ const serve = (config: HeartbeatConfig): Effect.Effect<never> =>
     return yield* Effect.never;
   });
 
-export { probe, serve, upstreamRequest, wantsStream };
+export { probe, serve };

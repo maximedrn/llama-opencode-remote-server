@@ -254,4 +254,5 @@ const stackCommand: Command.Command<
   ]),
 );
 
-export { type StackCommandError, stackCommand };
+export type { StackCommandError } from "@app/cli/command/command.types.ts";
+export { stackCommand };

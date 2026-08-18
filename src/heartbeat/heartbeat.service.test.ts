@@ -1,15 +1,14 @@
 import { describe, expect, test } from "bun:test";
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
-import {
-  probe,
-  serve,
-  upstreamRequest,
-  wantsStream,
-} from "@app/heartbeat/heartbeat.service.ts";
+import { probe, serve } from "@app/heartbeat/heartbeat.service.ts";
 import type {
   HeartbeatConfig,
   ProbeResult,
 } from "@app/heartbeat/heartbeat.types.ts";
+import {
+  upstreamRequest,
+  wantsStream,
+} from "@app/heartbeat/heartbeat.utils.ts";
 import type { Server } from "bun";
 import { Duration, Effect, Fiber, Option, Schedule } from "effect";
 
@@ -295,4 +294,42 @@ describe("upstreamRequest", () => {
     const request: Request = new Request("http://front/health");
     expect(upstreamRequest(request, "").body).toBeUndefined();
   });
+});
+
+/**
+ * Once the SSE answer is committed its status is already sent, so a failing
+ * upstream can only be told inside the stream — never dumped raw to the logs
+ * as an unhandled rejection.
+ */
+describe("an upstream that fails after the answer was committed", () => {
+  test(
+    "ends the committed stream with an error event",
+    async () => {
+      const upstream: Server<unknown> = Bun.serve({
+        fetch: async (request: Request): Promise<Response> =>
+          new URL(request.url).pathname === Heartbeat.paths.health
+            ? Response.json({ status: "ok" })
+            : Bun.sleep(silence).then((): Response => Response.json({})),
+        port: 0,
+      });
+      const config: HeartbeatConfig = configFor(portOf(upstream), 49_967);
+      const body: string = await withFront(
+        config,
+        async (): Promise<string> => {
+          const answer: Promise<Response> = fetch(
+            frontUrl(config, "/v1/chat/completions"),
+            { body: JSON.stringify({ stream: true }), method: "POST" },
+          );
+          // Long enough for the front to commit the stream, then llama.cpp dies.
+          await Bun.sleep(keepAliveMs * 4);
+          await upstream.stop(true);
+          return await (await answer).text();
+        },
+      );
+      expect(body).toContain(Heartbeat.keepAliveComment);
+      expect(body).toContain('"error"');
+      expect(body.endsWith("data: [DONE]\n\n")).toBe(true);
+    },
+    silence * 3,
+  );
 });

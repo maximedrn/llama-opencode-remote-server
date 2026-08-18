@@ -15,6 +15,10 @@ services:
       context: .
       dockerfile: docker/heartbeat.Dockerfile
     image: ${HEARTBEAT_IMAGE:-llama-opencode-remote-server/heartbeat:local}
+    # The image is built from this repository, so `up` has to rebuild it after
+    # a change: Compose otherwise reuses the one already on the machine, and
+    # the fix you just wrote never reaches the container.
+    pull_policy: build
     restart: unless-stopped
     depends_on:
       llama:
