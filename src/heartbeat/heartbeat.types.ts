@@ -5,6 +5,8 @@ import { Data, type Option, type Runtime } from "effect";
 interface HeartbeatConfig {
   /** Bearer token read from the mounted Docker secret, when there is one. */
   readonly apiKey: Option.Option<string>;
+  /** Seconds of silence Bun tolerates on a connection it is not relaying. */
+  readonly idleTimeoutSeconds: number;
   /** Silence tolerated before a keep-alive comment is written. */
   readonly keepAliveMs: number;
   readonly port: number;

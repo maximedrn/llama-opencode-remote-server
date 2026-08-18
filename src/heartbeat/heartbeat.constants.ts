@@ -17,7 +17,8 @@ const Heartbeat = {
   /** `check` runs one probe against this process and exits: the healthcheck. */
   checkArgument: "check",
   defaults: {
-    /** Bun caps the socket idle timeout at 255s; keep-alives arrive earlier. */
+    /** Bun caps the socket idle timeout at 255s, and closes after 10s without
+     * one. Relayed requests opt out of it entirely, see `noRequestTimeout`. */
     idleTimeoutSeconds: 255,
     keepAliveMs: 10_000,
     port: 8081,
@@ -48,6 +49,7 @@ const Heartbeat = {
   keepAliveComment: ": keep-alive\n\n",
   keys: {
     apiKeyFile: "LLAMA_API_KEY_FILE",
+    idleTimeoutSeconds: "HEARTBEAT_IDLE_TIMEOUT_S",
     keepAliveMs: "HEARTBEAT_KEEPALIVE_MS",
     port: "HEARTBEAT_PORT",
     probeTimeoutMs: "HEARTBEAT_TIMEOUT_MS",
@@ -64,6 +66,14 @@ const Heartbeat = {
     proxied: "request relayed",
     upstreamFailed: "llama.cpp refused the connection",
   },
+  /**
+   * Seconds of silence Bun tolerates on a relayed connection: none, because
+   * prompt processing on a long context says nothing for minutes and a
+   * non-streamed answer cannot be padded with comments. llama.cpp then sees
+   * its peer disappear and cancels the task (`should_stop`), which is exactly
+   * the failure this process exists to prevent.
+   */
+  noRequestTimeout: 0,
   paths: {
     health: "/health",
     props: "/props",

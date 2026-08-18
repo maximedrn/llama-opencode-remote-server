@@ -9,6 +9,8 @@ import type { Server } from "bun";
 import { Duration, Effect, Fiber, Option, Schedule } from "effect";
 
 const keepAliveMs: number = 50;
+/** Long enough for the one-second idle timeout of the front to fire. */
+const silence: number = 4000;
 const token: string = 'data: {"token":"OK"}\n\n';
 
 /** The answer llama.cpp only starts writing once it has thought long enough. */
@@ -49,6 +51,7 @@ const silentUpstream = (silenceMs: number): Server<unknown> =>
 
 const configFor = (upstreamPort: number, port: number): HeartbeatConfig => ({
   apiKey: Option.none(),
+  idleTimeoutSeconds: 1,
   keepAliveMs,
   port,
   probeTimeoutMs: 1000,
@@ -155,6 +158,42 @@ describe("keep-alive front", () => {
     );
     expect(status).toBe(Heartbeat.upstreamStatus.badGateway);
   });
+});
+
+/**
+ * A plain completion cannot be padded with SSE comments, so nothing at all
+ * travels while llama.cpp processes the prompt. Bun would close such an idle
+ * connection — here after one second — and llama.cpp, seeing its peer go away,
+ * cancels the task it was working on. Relayed requests therefore opt out of
+ * the idle timeout entirely.
+ */
+describe("a silent non-streamed answer", () => {
+  test(
+    "outlives the idle timeout of the connection",
+    async () => {
+      const upstream: Server<unknown> = Bun.serve({
+        fetch: async (request: Request): Promise<Response> =>
+          new URL(request.url).pathname === Heartbeat.paths.health
+            ? Response.json({ status: "ok" })
+            : Bun.sleep(silence).then(
+                (): Response =>
+                  Response.json({ choices: [{ message: { content: "OK" } }] }),
+              ),
+        port: 0,
+      });
+      const config: HeartbeatConfig = configFor(portOf(upstream), 49_965);
+      const answered: string = await withFront(
+        config,
+        fetchText(frontUrl(config, "/v1/chat/completions"), {
+          body: JSON.stringify({ stream: false }),
+          method: "POST",
+        }),
+      );
+      await upstream.stop(true);
+      expect(answered).toContain("OK");
+    },
+    silence * 3,
+  );
 });
 
 /**

@@ -25,6 +25,15 @@ services:
         source: ${MODEL_DIRECTORY:?Set MODEL_DIRECTORY in .env}
         target: /models
         read_only: true
+    environment:
+      # Ping the stream while the prompt is processed, so no hop in the chain
+      # ever sees an idle connection. Read from the environment on purpose: a
+      # build that predates the option ignores the variable, where an unknown
+      # command-line flag would stop it from starting.
+      LLAMA_ARG_SSE_PING_INTERVAL: ${SSE_PING_INTERVAL:-15}
+      # How long llama.cpp itself waits before cancelling the task it is
+      # working on (`should_stop`).
+      LLAMA_ARG_TIMEOUT: ${LLAMA_TIMEOUT:-3600}
     secrets:
       - llama_api_key
     healthcheck:

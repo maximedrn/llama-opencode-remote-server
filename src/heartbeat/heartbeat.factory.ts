@@ -52,12 +52,17 @@ const heartbeatConfig: Effect.Effect<
 > = Effect.gen(function* () {
   const values: {
     readonly apiKeyFile: Option.Option<string>;
+    readonly idleTimeoutSeconds: number;
     readonly keepAliveMs: number;
     readonly port: number;
     readonly probeTimeoutMs: number;
     readonly upstreamUrl: string;
   } = yield* Config.all({
     apiKeyFile: Config.option(Config.string(Heartbeat.keys.apiKeyFile)),
+    idleTimeoutSeconds: positive(
+      Heartbeat.keys.idleTimeoutSeconds,
+      Heartbeat.defaults.idleTimeoutSeconds,
+    ),
     keepAliveMs: positive(
       Heartbeat.keys.keepAliveMs,
       Heartbeat.defaults.keepAliveMs,
@@ -74,6 +79,7 @@ const heartbeatConfig: Effect.Effect<
   });
   return {
     apiKey: yield* readApiKey(values.apiKeyFile),
+    idleTimeoutSeconds: values.idleTimeoutSeconds,
     keepAliveMs: values.keepAliveMs,
     port: values.port,
     probeTimeoutMs: values.probeTimeoutMs,

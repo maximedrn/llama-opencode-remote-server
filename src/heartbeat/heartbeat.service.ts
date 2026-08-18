@@ -302,9 +302,15 @@ const serve = (config: HeartbeatConfig): Effect.Effect<never> =>
   Effect.gen(function* () {
     const host: Host = yield* Effect.runtime<never>();
     const server: Server<unknown> = Bun.serve({
-      fetch: (request: Request): Promise<Response> =>
-        handle(host, config, request),
-      idleTimeout: Heartbeat.defaults.idleTimeoutSeconds,
+      fetch: (request: Request, self: Server<unknown>): Promise<Response> => {
+        // A relayed request has no deadline of its own: llama.cpp decides when
+        // it is done, and a peer that hangs up is what makes it give up
+        // (`should_stop`). Bun closes an idle connection on its own, so every
+        // relayed request opts out of that timer.
+        self.timeout(request, Heartbeat.noRequestTimeout);
+        return handle(host, config, request);
+      },
+      idleTimeout: config.idleTimeoutSeconds,
       port: config.port,
     });
     yield* Effect.logInfo(Heartbeat.messages.listening).pipe(
