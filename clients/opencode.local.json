@@ -5,6 +5,10 @@
     "llama": {
       "models": {
         "default": {
+          "limit": {
+            "context": 262144,
+            "output": 8192
+          },
           "name": "llama.cpp"
         }
       },
