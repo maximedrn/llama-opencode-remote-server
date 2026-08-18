@@ -1,6 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
-import { probe, serve, wantsStream } from "@app/heartbeat/heartbeat.service.ts";
+import {
+  probe,
+  serve,
+  upstreamRequest,
+  wantsStream,
+} from "@app/heartbeat/heartbeat.service.ts";
 import type {
   HeartbeatConfig,
   ProbeResult,
@@ -261,4 +266,33 @@ describe("a client that hangs up", () => {
     },
     silence * 3,
   );
+});
+
+/**
+ * Measured, not assumed: Bun's fetch cuts a silent request at 300 seconds and
+ * `timeout: false` holds past 400. Prompt processing on a long context takes
+ * longer than the former, so the front would drop the connection and make
+ * llama.cpp cancel the task it was asked to protect.
+ */
+describe("upstreamRequest", () => {
+  test("waits for llama.cpp however long it takes", () => {
+    const request: Request = new Request("http://front/v1/chat/completions", {
+      body: "{}",
+      method: "POST",
+    });
+    expect(upstreamRequest(request, "{}").timeout).toBe(false);
+  });
+
+  test("carries the client's signal, so giving up frees the slot", () => {
+    const request: Request = new Request("http://front/v1/chat/completions", {
+      body: "{}",
+      method: "POST",
+    });
+    expect(upstreamRequest(request, "{}").signal).toBe(request.signal);
+  });
+
+  test("relays a body only when there is one", () => {
+    const request: Request = new Request("http://front/health");
+    expect(upstreamRequest(request, "").body).toBeUndefined();
+  });
 });

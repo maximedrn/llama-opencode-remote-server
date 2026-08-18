@@ -3,6 +3,7 @@ import type {
   HeartbeatConfig,
   Host,
   ProbeResult,
+  UpstreamRequest,
 } from "@app/heartbeat/heartbeat.types.ts";
 import type { Server } from "bun";
 import {
@@ -77,6 +78,25 @@ const withKeepAlive = (
       Stream.merge(spoken, comments(config), { haltStrategy: "left" }),
     ),
   );
+
+/**
+ * `timeout: false` is what makes this process work at all: Bun's fetch gives
+ * up after 300 seconds of silence, and prompt processing on a long context is
+ * silent for longer than that. Without it the front drops the connection,
+ * llama.cpp sees its peer disappear and cancels the very task it was asked to
+ * protect. Measured, not assumed: the default cut at 300s, `false` held 400s.
+ *
+ * The client's own signal is forwarded so a client that gives up frees the
+ * slot instead of leaving llama.cpp generating for nobody.
+ */
+const upstreamRequest = (request: Request, body: string): UpstreamRequest => ({
+  body: body.length > 0 ? body : undefined,
+  headers: forwardHeaders(request),
+  method: request.method,
+  redirect: "manual",
+  signal: request.signal,
+  timeout: false,
+});
 
 /** Hop-by-hop headers belong to one connection, never to the next one. */
 const forwardHeaders = (request: Request): Headers => {
@@ -200,13 +220,7 @@ const relay = async (
   );
   const upstream: Promise<Response> = fetch(
     `${config.upstreamUrl}${target.pathname}${target.search}`,
-    {
-      body: body.length > 0 ? body : undefined,
-      headers: forwardHeaders(request),
-      method: request.method,
-      redirect: "manual",
-      signal: request.signal,
-    },
+    upstreamRequest(request, body),
   );
   const early: Option.Option<Response> = Option.fromNullable(
     await Promise.race([
@@ -350,4 +364,4 @@ const serve = (config: HeartbeatConfig): Effect.Effect<never> =>
     return yield* Effect.never;
   });
 
-export { probe, serve, wantsStream };
+export { probe, serve, upstreamRequest, wantsStream };

@@ -25,6 +25,16 @@ interface ProbeResult {
  * — plain async functions — log through the same logger and annotations. */
 type Host = Runtime.Runtime<never>;
 
+/**
+ * What the front sends to llama.cpp. `timeout` is honoured by Bun's fetch but
+ * absent from its types (1.3.14), and it is the option that matters most here:
+ * the default gives up after 300 seconds of silence, which is less than the
+ * prompt processing of a long context.
+ */
+interface UpstreamRequest extends RequestInit {
+  readonly timeout: false;
+}
+
 /** Raised by `heartbeat check`, which is what makes the container unhealthy. */
 class LlamaDownError extends Data.TaggedError("LlamaDownError")<{
   readonly reason: string;
@@ -35,4 +45,10 @@ class LlamaDownError extends Data.TaggedError("LlamaDownError")<{
   }
 }
 
-export { type HeartbeatConfig, type Host, LlamaDownError, type ProbeResult };
+export {
+  type HeartbeatConfig,
+  type Host,
+  LlamaDownError,
+  type ProbeResult,
+  type UpstreamRequest,
+};
