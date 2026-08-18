@@ -144,6 +144,7 @@ const commit = (
     host,
     Effect.logInfo(Heartbeat.messages.committed).pipe(
       Effect.annotateLogs({
+        asked: true,
         method: request.method,
         path: new URL(request.url).pathname,
       }),
@@ -201,6 +202,10 @@ const relay = async (
     host,
     Effect.logInfo(Heartbeat.messages.proxied).pipe(
       Effect.annotateLogs({
+        // `asked` is what the client requested, `stream` what llama.cpp
+        // answered with: a long request that asked for neither is the one
+        // nothing can keep alive.
+        asked: wantsStream(body),
         latencyMs: Date.now() - started,
         method: request.method,
         path: target.pathname,
