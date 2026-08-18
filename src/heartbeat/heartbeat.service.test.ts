@@ -220,3 +220,45 @@ describe("wantsStream", () => {
     expect(wantsStream(JSON.stringify({ stream: "true" }))).toBe(false);
   });
 });
+
+/**
+ * A client that gives up must take llama.cpp's task with it: a slot left
+ * generating for nobody is a GPU held hostage.
+ */
+describe("a client that hangs up", () => {
+  test(
+    "cancels the request llama.cpp was working on",
+    async () => {
+      let abandoned = false;
+      const upstream: Server<unknown> = Bun.serve({
+        fetch: async (request: Request): Promise<Response> => {
+          request.signal.addEventListener("abort", (): void => {
+            abandoned = true;
+          });
+          await Bun.sleep(silence);
+          return Response.json({ ok: true });
+        },
+        port: 0,
+      });
+      const config: HeartbeatConfig = configFor(portOf(upstream), 49_966);
+      const controller: AbortController = new AbortController();
+      await withFront(config, async (): Promise<void> => {
+        const answer: Promise<Response> = fetch(
+          frontUrl(config, "/v1/chat/completions"),
+          {
+            body: JSON.stringify({ stream: false }),
+            method: "POST",
+            signal: controller.signal,
+          },
+        );
+        await Bun.sleep(200);
+        controller.abort();
+        await answer.catch((): undefined => undefined);
+        await Bun.sleep(200);
+      });
+      await upstream.stop(true);
+      expect(abandoned).toBe(true);
+    },
+    silence * 3,
+  );
+});

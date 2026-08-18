@@ -57,6 +57,8 @@ const Heartbeat = {
   },
   messages: {
     build: "llama.cpp build",
+    clientGone:
+      "the client hung up; llama.cpp is told to drop the task it was working on",
     committed:
       "llama.cpp is still silent: answering the stream and holding it open",
     keepAlive: "keep-alive sent while llama.cpp was silent",

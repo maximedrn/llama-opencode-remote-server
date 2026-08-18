@@ -179,6 +179,25 @@ const relay = async (
   const target: URL = new URL(request.url);
   const started: number = Date.now();
   const body: string = await request.text();
+  // Which side hung up is the whole question when a long request dies: this
+  // line is logged when it is the client, and `upstreamFailed` when it is
+  // llama.cpp. Forwarding the signal also frees the slot instead of letting
+  // llama.cpp generate for nobody.
+  request.signal.addEventListener(
+    "abort",
+    (): void => {
+      log(
+        host,
+        Effect.logWarning(Heartbeat.messages.clientGone).pipe(
+          Effect.annotateLogs({
+            elapsedMs: Date.now() - started,
+            path: target.pathname,
+          }),
+        ),
+      );
+    },
+    { once: true },
+  );
   const upstream: Promise<Response> = fetch(
     `${config.upstreamUrl}${target.pathname}${target.search}`,
     {
@@ -186,6 +205,7 @@ const relay = async (
       headers: forwardHeaders(request),
       method: request.method,
       redirect: "manual",
+      signal: request.signal,
     },
   );
   const early: Option.Option<Response> = Option.fromNullable(
@@ -206,6 +226,7 @@ const relay = async (
         // answered with: a long request that asked for neither is the one
         // nothing can keep alive.
         asked: wantsStream(body),
+        bytes: body.length,
         latencyMs: Date.now() - started,
         method: request.method,
         path: target.pathname,
