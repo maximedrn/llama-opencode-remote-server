@@ -56,6 +56,7 @@ const configFor = (upstreamPort: number, port: number): HeartbeatConfig => ({
   keepAliveMs,
   port,
   probeTimeoutMs: 1000,
+  trace: false,
   upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
 });
 

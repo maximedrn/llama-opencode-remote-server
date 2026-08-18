@@ -1,5 +1,8 @@
 import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
-import type { UpstreamRequest } from "@app/heartbeat/heartbeat.types.ts";
+import type {
+  RequestSummary,
+  UpstreamRequest,
+} from "@app/heartbeat/heartbeat.types.ts";
 import { Option, Predicate, Schema } from "effect";
 
 /**
@@ -14,11 +17,6 @@ const requestSchema = Schema.parseJson(
     stream: Schema.optional(Schema.Boolean),
   }),
 );
-
-interface RequestSummary {
-  readonly asked: boolean;
-  readonly model: string;
-}
 
 const summarize = (body: string): RequestSummary =>
   Option.match(Schema.decodeUnknownOption(requestSchema)(body), {
@@ -98,16 +96,22 @@ const upstreamRequest = (request: Request, body: string): UpstreamRequest => ({
   timeout: false,
 });
 
+/** The tail of a body: a tool call is written at the end of a completion. */
+const tail = (text: string): string =>
+  text.length > Heartbeat.traceLength
+    ? text.slice(-Heartbeat.traceLength)
+    : text;
+
 export {
   describe,
   encode,
   forwardHeaders,
   isStream,
-  type RequestSummary,
   relayHeaders,
   shorten,
   streamHeaders,
   summarize,
+  tail,
   upstreamRequest,
   wantsStream,
 };

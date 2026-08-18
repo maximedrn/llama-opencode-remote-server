@@ -38,6 +38,10 @@ services:
       HEARTBEAT_PORT: "8081"
       HEARTBEAT_TIMEOUT_MS: ${HEARTBEAT_TIMEOUT_MS:-5000}
       LLAMA_API_KEY_FILE: /run/secrets/llama_api_key
+      # Set HEARTBEAT_TRACE=true in .env to log the bodies going through: the
+      # only way to see what an agent actually sent when it hangs on a tool
+      # call. Prompts end up in the logs, so leave it off in normal use.
+      HEARTBEAT_TRACE: ${HEARTBEAT_TRACE:-}
       LLAMA_UPSTREAM_URL: http://llama:8080
     healthcheck:
       test:

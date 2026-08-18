@@ -56,6 +56,7 @@ const heartbeatConfig: Effect.Effect<
     readonly keepAliveMs: number;
     readonly port: number;
     readonly probeTimeoutMs: number;
+    readonly trace: boolean;
     readonly upstreamUrl: string;
   } = yield* Config.all({
     apiKeyFile: Config.option(Config.string(Heartbeat.keys.apiKeyFile)),
@@ -72,6 +73,7 @@ const heartbeatConfig: Effect.Effect<
       Heartbeat.keys.probeTimeoutMs,
       Heartbeat.defaults.probeTimeoutMs,
     ),
+    trace: Config.boolean(Heartbeat.keys.trace).pipe(Config.withDefault(false)),
     upstreamUrl: text(
       Heartbeat.keys.upstreamUrl,
       Heartbeat.defaults.upstreamUrl,
@@ -83,6 +85,7 @@ const heartbeatConfig: Effect.Effect<
     keepAliveMs: values.keepAliveMs,
     port: values.port,
     probeTimeoutMs: values.probeTimeoutMs,
+    trace: values.trace,
     upstreamUrl: values.upstreamUrl.replace(trailingSlash, ""),
   };
 });

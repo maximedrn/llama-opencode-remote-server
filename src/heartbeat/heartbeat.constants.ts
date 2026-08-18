@@ -53,6 +53,7 @@ const Heartbeat = {
     keepAliveMs: "HEARTBEAT_KEEPALIVE_MS",
     port: "HEARTBEAT_PORT",
     probeTimeoutMs: "HEARTBEAT_TIMEOUT_MS",
+    trace: "HEARTBEAT_TRACE",
     upstreamUrl: "LLAMA_UPSTREAM_URL",
   },
   messages: {
@@ -68,6 +69,8 @@ const Heartbeat = {
     probeFailed: "llama.cpp did not answer the health probe",
     propsUnavailable: "llama.cpp did not report its build",
     proxied: "request relayed",
+    traceAnswer: "wire trace: what llama.cpp answered",
+    traceRequest: "wire trace: what the client sent",
     upstreamFailed: "llama.cpp refused the connection",
   },
   /**
@@ -96,6 +99,11 @@ const Heartbeat = {
     `data: ${JSON.stringify({ error: { message: reason } })}\n\ndata: [DONE]\n\n`,
   /** Field of the OpenAI request asking for a streamed answer. */
   streamField: "stream",
+  /**
+   * How much of a body a trace keeps. Tool calls arrive at the *end* of a
+   * completion, so the tail is what matters when an agent hangs on one.
+   */
+  traceLength: 4096,
   upstreamStatus: {
     badGateway: 502,
     ok: 200,

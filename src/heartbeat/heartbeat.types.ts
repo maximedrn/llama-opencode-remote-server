@@ -11,6 +11,8 @@ interface HeartbeatConfig {
   readonly keepAliveMs: number;
   readonly port: number;
   readonly probeTimeoutMs: number;
+  /** Logs the bodies going through, for the day an agent hangs on a tool call. */
+  readonly trace: boolean;
   readonly upstreamUrl: string;
 }
 
@@ -35,6 +37,11 @@ interface UpstreamRequest extends RequestInit {
   readonly timeout: false;
 }
 
+interface RequestSummary {
+  readonly asked: boolean;
+  readonly model: string;
+}
+
 /** Raised by `heartbeat check`, which is what makes the container unhealthy. */
 class LlamaDownError extends Data.TaggedError("LlamaDownError")<{
   readonly reason: string;
@@ -50,5 +57,6 @@ export {
   type Host,
   LlamaDownError,
   type ProbeResult,
+  type RequestSummary,
   type UpstreamRequest,
 };
