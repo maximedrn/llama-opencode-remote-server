@@ -5,10 +5,7 @@ import type {
   HeartbeatConfig,
   ProbeResult,
 } from "@app/heartbeat/heartbeat.types.ts";
-import {
-  upstreamRequest,
-  wantsStream,
-} from "@app/heartbeat/heartbeat.utils.ts";
+
 import type { Server } from "bun";
 import { Duration, Effect, Fiber, Option, Schedule } from "effect";
 
@@ -201,28 +198,40 @@ describe("a silent non-streamed answer", () => {
 });
 
 /**
- * Only a streamed completion can be answered before llama.cpp has spoken: for
- * anything else the front has to wait, since it cannot invent a status code.
+ * The case that hangs an agent: the stream is committed, then llama.cpp
+ * answers something that is not a stream — a rejected model, a refused
+ * `tools` + `stream` pair. Piping that JSON in leaves the client waiting for
+ * a frame that never comes.
  */
-describe("wantsStream", () => {
-  test("recognizes a streamed completion", () => {
-    expect(wantsStream(JSON.stringify({ messages: [], stream: true }))).toBe(
-      true,
-    );
-  });
-
-  test("leaves a plain completion alone", () => {
-    expect(wantsStream(JSON.stringify({ messages: [], stream: false }))).toBe(
-      false,
-    );
-    expect(wantsStream(JSON.stringify({ messages: [] }))).toBe(false);
-  });
-
-  test("a body that is not a JSON object is never streamed", () => {
-    expect(wantsStream("")).toBe(false);
-    expect(wantsStream("not-json")).toBe(false);
-    expect(wantsStream(JSON.stringify({ stream: "true" }))).toBe(false);
-  });
+describe("an upstream that answers without a stream", () => {
+  test(
+    "turns the answer into an error event the client understands",
+    async () => {
+      const upstream: Server<unknown> = Bun.serve({
+        fetch: async (request: Request): Promise<Response> =>
+          new URL(request.url).pathname === Heartbeat.paths.health
+            ? Response.json({ status: "ok" })
+            : Bun.sleep(keepAliveMs * 3).then(
+                (): Response =>
+                  Response.json({ error: "model not found" }, { status: 404 }),
+              ),
+        port: 0,
+      });
+      const config: HeartbeatConfig = configFor(portOf(upstream), 49_968);
+      const body: string = await withFront(
+        config,
+        fetchText(frontUrl(config, "/v1/chat/completions"), {
+          body: JSON.stringify({ model: "", stream: true }),
+          method: "POST",
+        }),
+      );
+      await upstream.stop(true);
+      expect(body).toContain(Heartbeat.keepAliveComment);
+      expect(body).toContain("model not found");
+      expect(body.endsWith("data: [DONE]\n\n")).toBe(true);
+    },
+    silence * 3,
+  );
 });
 
 /**
@@ -273,28 +282,6 @@ describe("a client that hangs up", () => {
  * longer than the former, so the front would drop the connection and make
  * llama.cpp cancel the task it was asked to protect.
  */
-describe("upstreamRequest", () => {
-  test("waits for llama.cpp however long it takes", () => {
-    const request: Request = new Request("http://front/v1/chat/completions", {
-      body: "{}",
-      method: "POST",
-    });
-    expect(upstreamRequest(request, "{}").timeout).toBe(false);
-  });
-
-  test("carries the client's signal, so giving up frees the slot", () => {
-    const request: Request = new Request("http://front/v1/chat/completions", {
-      body: "{}",
-      method: "POST",
-    });
-    expect(upstreamRequest(request, "{}").signal).toBe(request.signal);
-  });
-
-  test("relays a body only when there is one", () => {
-    const request: Request = new Request("http://front/health");
-    expect(upstreamRequest(request, "").body).toBeUndefined();
-  });
-});
 
 /**
  * Once the SSE answer is committed its status is already sent, so a failing

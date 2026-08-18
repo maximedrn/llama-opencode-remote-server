@@ -2,10 +2,35 @@ import { Heartbeat } from "@app/heartbeat/heartbeat.constants.ts";
 import type { UpstreamRequest } from "@app/heartbeat/heartbeat.types.ts";
 import { Option, Predicate, Schema } from "effect";
 
-/** A completion asking for a stream is the only one worth holding open. */
-const streamRequestSchema = Schema.parseJson(
-  Schema.Struct({ stream: Schema.Boolean }),
+/**
+ * What the front needs to know about a request it has not been given time to
+ * understand: whether it asked for a stream, and which model it named. An
+ * empty model is worth seeing in the logs — it is what an agent misconfigured
+ * with `"model": ""` sends.
+ */
+const requestSchema = Schema.parseJson(
+  Schema.Struct({
+    model: Schema.optional(Schema.String),
+    stream: Schema.optional(Schema.Boolean),
+  }),
 );
+
+interface RequestSummary {
+  readonly asked: boolean;
+  readonly model: string;
+}
+
+const summarize = (body: string): RequestSummary =>
+  Option.match(Schema.decodeUnknownOption(requestSchema)(body), {
+    onNone: (): RequestSummary => ({ asked: false, model: "" }),
+    onSome: (request: {
+      readonly model?: string;
+      readonly stream?: boolean;
+    }): RequestSummary => ({
+      asked: request.stream === true,
+      model: request.model ?? "",
+    }),
+  });
 
 const encode = (text: string): Uint8Array => new TextEncoder().encode(text);
 
@@ -21,11 +46,7 @@ const isStream = (response: Response): boolean =>
   );
 
 /** Read from the request, because llama.cpp answers too late to be asked. */
-const wantsStream = (body: string): boolean =>
-  Option.match(Schema.decodeUnknownOption(streamRequestSchema)(body), {
-    onNone: (): boolean => false,
-    onSome: (request: { readonly stream: boolean }): boolean => request.stream,
-  });
+const wantsStream = (body: string): boolean => summarize(body).asked;
 
 /** Hop-by-hop headers belong to one connection, never to the next one. */
 const forwardHeaders = (request: Request): Headers => {
@@ -82,9 +103,11 @@ export {
   encode,
   forwardHeaders,
   isStream,
+  type RequestSummary,
   relayHeaders,
   shorten,
   streamHeaders,
+  summarize,
   upstreamRequest,
   wantsStream,
 };

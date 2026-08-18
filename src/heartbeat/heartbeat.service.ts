@@ -8,11 +8,12 @@ import {
   describe,
   encode,
   isStream,
+  type RequestSummary,
   relayHeaders,
   shorten,
   streamHeaders,
+  summarize,
   upstreamRequest,
-  wantsStream,
 } from "@app/heartbeat/heartbeat.utils.ts";
 import type { Server } from "bun";
 import { Duration, Effect, Option, Runtime, Schedule, Stream } from "effect";
@@ -58,6 +59,28 @@ const withKeepAlive = (
   );
 
 /**
+ * The answer was committed as a stream, and llama.cpp replied with something
+ * else — a rejected model, a refused `tools` + `stream` combination. Piping
+ * that JSON into the stream leaves the client waiting for a frame that never
+ * comes, so it is turned into the one frame every client understands.
+ */
+const notStreamed = (
+  host: Host,
+  response: Response,
+): Effect.Effect<Stream.Stream<Uint8Array>> =>
+  Effect.promise((): Promise<string> => response.text()).pipe(
+    Effect.catchAllDefect((): Effect.Effect<string> => Effect.succeed("")),
+    Effect.map((body: string): Stream.Stream<Uint8Array> => {
+      const reason: string = Heartbeat.messages.notStreamed(
+        response.status,
+        shorten(body),
+      );
+      log(host, Effect.logError(reason));
+      return Stream.make(encode(Heartbeat.streamError(reason)));
+    }),
+  );
+
+/**
  * The answer, once it finally arrives. A rejected upstream cannot become a
  * status code any more — the SSE answer was committed minutes ago — so it is
  * logged and told to the client inside the stream it is already reading,
@@ -72,12 +95,16 @@ const pending = (
       catch: (cause: unknown): string => describe(cause),
       try: (): Promise<Response> => upstream,
     }).pipe(
-      Effect.map(
-        (response: Response): Stream.Stream<Uint8Array> =>
-          Option.match(Option.fromNullable(response.body), {
-            onNone: (): Stream.Stream<Uint8Array> => Stream.empty,
-            onSome: bytes,
-          }),
+      Effect.flatMap(
+        (response: Response): Effect.Effect<Stream.Stream<Uint8Array>> =>
+          isStream(response)
+            ? Effect.succeed(
+                Option.match(Option.fromNullable(response.body), {
+                  onNone: (): Stream.Stream<Uint8Array> => Stream.empty,
+                  onSome: bytes,
+                }),
+              )
+            : notStreamed(host, response),
       ),
       Effect.catchAll(
         (reason: string): Effect.Effect<Stream.Stream<Uint8Array>> => {
@@ -105,6 +132,7 @@ const commit = (
   host: Host,
   config: HeartbeatConfig,
   request: Request,
+  summary: RequestSummary,
   upstream: Promise<Response>,
 ): Response => {
   log(
@@ -113,6 +141,7 @@ const commit = (
       Effect.annotateLogs({
         asked: true,
         method: request.method,
+        model: summary.model,
         path: new URL(request.url).pathname,
       }),
     ),
@@ -146,6 +175,7 @@ const relay = async (
   const target: URL = new URL(request.url);
   const started: number = Date.now();
   const body: string = await request.text();
+  const summary: RequestSummary = summarize(body);
   // Which side hung up is the whole question when a long request dies: this
   // line is logged when it is the client, and `upstreamFailed` when it is
   // llama.cpp. Forwarding the signal also frees the slot instead of letting
@@ -175,8 +205,8 @@ const relay = async (
       Bun.sleep(config.keepAliveMs).then((): undefined => undefined),
     ]),
   );
-  if (Option.isNone(early) && wantsStream(body)) {
-    return commit(host, config, request, upstream);
+  if (Option.isNone(early) && summary.asked) {
+    return commit(host, config, request, summary, upstream);
   }
   const response: Response = await upstream;
   log(
@@ -186,10 +216,11 @@ const relay = async (
         // `asked` is what the client requested, `stream` what llama.cpp
         // answered with: a long request that asked for neither is the one
         // nothing can keep alive.
-        asked: wantsStream(body),
+        asked: summary.asked,
         bytes: body.length,
         latencyMs: Date.now() - started,
         method: request.method,
+        model: summary.model,
         path: target.pathname,
         status: response.status,
         stream: isStream(response),

@@ -63,6 +63,8 @@ const Heartbeat = {
       "llama.cpp is still silent: answering the stream and holding it open",
     keepAlive: "keep-alive sent while llama.cpp was silent",
     listening: "keep-alive front listening",
+    notStreamed: (status: number, body: string): string =>
+      `llama.cpp answered HTTP ${status} without a stream: ${body}`,
     probeFailed: "llama.cpp did not answer the health probe",
     propsUnavailable: "llama.cpp did not report its build",
     proxied: "request relayed",
