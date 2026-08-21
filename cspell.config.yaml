@@ -37,9 +37,11 @@ words:
   - mlock
   - mmap
   - mmproj
+  - multimodal
   - ngram
   - nodelay
   - nosniff
+  - openagent
   - opencode
   - oven
   - pids
@@ -54,5 +56,6 @@ words:
   - tmpfs
   - ubatch
   - ulimits
+  - ultrabrain
   - unsloth
   - uwsgi
