@@ -1,0 +1,74 @@
+{
+  "[opencode]": {
+    "agents": {
+      "atlas": {
+        "model": "custom/default"
+      },
+      "explore": {
+        "model": "custom/default"
+      },
+      "hephaestus": {
+        "model": "custom/default"
+      },
+      "librarian": {
+        "model": "custom/default"
+      },
+      "metis": {
+        "model": "custom/default"
+      },
+      "momus": {
+        "model": "custom/default"
+      },
+      "multimodal-looker": {
+        "model": "custom/default"
+      },
+      "oracle": {
+        "model": "custom/default"
+      },
+      "prometheus": {
+        "model": "custom/default"
+      },
+      "sisyphus": {
+        "model": "custom/default"
+      },
+      "sisyphus-junior": {
+        "model": "custom/default"
+      }
+    },
+
+    "background_task": {
+      "messageStalenessTimeoutMs": 36000000,
+      "staleTimeoutMs": 36000000,
+      "syncPollTimeoutMs": 36000000,
+      "taskTtlMs": 36000000
+    },
+
+    "categories": {
+      "artistry": {
+        "model": "custom/default"
+      },
+      "deep": {
+        "model": "custom/default"
+      },
+      "quick": {
+        "model": "custom/default"
+      },
+      "ultrabrain": {
+        "model": "custom/default"
+      },
+      "unspecified-high": {
+        "model": "custom/default"
+      },
+      "unspecified-low": {
+        "model": "custom/default"
+      },
+      "visual-engineering": {
+        "model": "custom/default"
+      },
+      "writing": {
+        "model": "custom/default"
+      }
+    }
+  },
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/omo.schema.json"
+}

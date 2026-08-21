@@ -9,6 +9,9 @@ secrets/*
 # Node modules.
 node_modules/
 
+# Compiled heartbeat binary.
+dist/
+
 # Log files.
 *.log
 

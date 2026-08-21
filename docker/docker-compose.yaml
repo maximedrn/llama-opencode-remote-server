@@ -23,6 +23,11 @@ services:
         source: ./nginx/nginx.conf
         target: /etc/nginx/nginx.conf
         read_only: true
+      # Swapped by docker-compose.keepalive.yaml, which puts the front in front.
+      - type: bind
+        source: ./nginx/upstream.llama.conf
+        target: /etc/nginx/upstream.conf
+        read_only: true
     healthcheck:
       test:
         - "CMD"

@@ -206,6 +206,82 @@
           }
         }
       }
+    },
+    {
+      "includes": ["src/cli/system/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["./**", "../**"],
+                    "message": "Relative imports are forbidden: use the @app/* or @test/* aliases."
+                  },
+                  {
+                    "group": [
+                      "@app/cli/command/**",
+                      "@app/cli/operation/**",
+                      "@app/cli/resource/**"
+                    ],
+                    "message": "system/ is the bottom layer: host plumbing cannot import a resource, an operation or the CLI surface."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/cli/resource/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["./**", "../**"],
+                    "message": "Relative imports are forbidden: use the @app/* or @test/* aliases."
+                  },
+                  {
+                    "group": ["@app/cli/command/**", "@app/cli/operation/**"],
+                    "message": "resource/ cannot import an operation or the CLI surface: dependencies only point downwards."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/cli/operation/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "patterns": [
+                  {
+                    "group": ["./**", "../**"],
+                    "message": "Relative imports are forbidden: use the @app/* or @test/* aliases."
+                  },
+                  {
+                    "group": ["@app/cli/command/**"],
+                    "message": "operation/ cannot import the CLI surface: command/ depends on operations, never the other way round."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   ],
   "plugins": ["./.biome/rules.grit"],

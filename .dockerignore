@@ -1,0 +1,11 @@
+# Everything the heartbeat image never needs.
+.git
+.github
+node_modules
+dist
+docs
+secrets
+clients
+nginx
+.env
+*.log

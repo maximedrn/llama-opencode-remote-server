@@ -7,7 +7,11 @@ ignorePaths:
   - LICENSE
   - node_modules
 words:
+  - addgroup
+  - adduser
+  - alives
   - biomejs
+  - Bunfig
   - bunx
   - cloudflared
   - CSPRNG
@@ -15,25 +19,36 @@ words:
   - envfile
   - fastcgi
   - Filenaming
+  - finalizer
   - ggml
   - gguf
+  - Gibibyte
   - healthcheck
   - huggingface
   - keepalive
   - lefthook
   - lefthookrc
+  - libgcc
+  - libstdc
+  - logfmt
   - loglevel
   - memlock
+  - millis
   - mlock
   - mmap
   - mmproj
+  - multimodal
   - ngram
   - nodelay
   - nosniff
+  - openagent
   - opencode
+  - oven
   - pids
+  - postconditions
   - qwen
   - Qwik
+  - recognised
   - rocm
   - scgi
   - seccomp
@@ -41,5 +56,6 @@ words:
   - tmpfs
   - ubatch
   - ulimits
+  - ultrabrain
   - unsloth
   - uwsgi

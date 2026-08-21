@@ -1,0 +1,7 @@
+# Local-only override with the keep-alive front: it is the service the clients
+# talk to, so it is the one published on the loopback interface. llama.cpp
+# stays on the internal network. Do not change this to 0.0.0.0.
+services:
+  heartbeat:
+    ports:
+      - "127.0.0.1:${LOCAL_PORT:-8080}:8081"

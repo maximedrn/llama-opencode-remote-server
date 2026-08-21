@@ -255,15 +255,19 @@ bun run stack test
 
 ## Commands
 
-| Command      | Description                              |
-| ------------ | ---------------------------------------- |
-| `init`       | Configure the backend, model and secrets |
-| `preflight`  | Validate the stack                       |
-| `pull`       | Pull container images                    |
-| `up`         | Start the stack                          |
-| `down`       | Stop the stack                           |
-| `restart`    | Restart the stack                        |
-| `status`     | Show container status                    |
-| `logs`       | Follow llama.cpp logs                    |
-| `test`       | Test the configured client               |
-| `rotate-key` | Rotate the API key and restart llama.cpp |
+| Command      | Description                                                           |
+| ------------ | --------------------------------------------------------------------- |
+| `init`       | Configure the backend, model and secrets (`--force` to overwrite)     |
+| `preflight`  | Validate the stack                                                    |
+| `pull`       | Pull container images                                                 |
+| `up`         | Start the stack                                                       |
+| `down`       | Stop the stack                                                        |
+| `restart`    | Restart the stack                                                     |
+| `status`     | State and health of every service (`--json` for raw Compose JSON)     |
+| `logs`       | Follow one service (`--service llama\|heartbeat\|proxy\|cloudflared`) |
+| `test`       | Send a chat completion with `clients/client.env`                      |
+| `health`     | One-token completion proving the server answers and the key works     |
+| `models`     | Local `.gguf` files, or what the server serves on a client host       |
+| `doctor`     | Every check with a suggested fix (`--client`, `--json`)               |
+| `rotate-key` | Rotate the API key, restart llama.cpp and wait for it to be healthy   |
+| `uninstall`  | Stop everything, then offer to remove `.env` and `secrets/`           |
