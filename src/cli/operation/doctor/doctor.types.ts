@@ -4,6 +4,7 @@ import type { IncompatibleHostError } from "@app/cli/resource/backend/backend.ty
 import type { DockerUnavailableError } from "@app/cli/resource/docker/docker.types.ts";
 import type { EnvNotInitializedError } from "@app/cli/resource/env/env.types.ts";
 import type { ModelFileMissingError } from "@app/cli/resource/model/model.types.ts";
+import type { NativeLifecycleError } from "@app/cli/resource/native/native.types.ts";
 import type { MissingSecretError } from "@app/cli/resource/secret/secret.types.ts";
 import type { CommandFailedError } from "@app/cli/system/process/process.types.ts";
 import type { PlatformError } from "@effect/platform/Error";
@@ -26,6 +27,7 @@ interface DoctorCheck {
 
 /** Anything a single check may fail with; each one is absorbed into a line. */
 type DoctorCheckError =
+  | NativeLifecycleError
   | CommandFailedError
   | DockerUnavailableError
   | EnvNotInitializedError

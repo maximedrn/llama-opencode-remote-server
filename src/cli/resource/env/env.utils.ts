@@ -14,7 +14,10 @@ const isFilled = (value: string): boolean => value.trim().length > 0;
 const cleanStackEnv = (env: StackEnv): StackEnv => ({
   backend: Option.filter(env.backend, isFilled),
   composeFile: Option.filter(env.composeFile, isFilled),
-  keepalive: Option.filter(env.keepalive, isFilled),
+  keepalive: Option.filter(
+    env.keepalive,
+    (value: string): boolean => value.trim().toLowerCase() === "true",
+  ),
   localPort: Option.filter(env.localPort, isFilled),
   modelAlias: Option.filter(env.modelAlias, isFilled),
   modelDirectory: Option.filter(env.modelDirectory, isFilled),

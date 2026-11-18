@@ -1,0 +1,21 @@
+{
+  // Optional OpenCode v2 additions. Merge the entries you need into
+  // .opencode/opencode.jsonc in the workspace.
+  "mcp": {
+    "servers": {
+      "context7": {
+        "type": "remote",
+        "url": "https://mcp.context7.com/mcp"
+      }
+    }
+  },
+  // Add package names or local directories for compatible OpenCode v2 plugins.
+  // Example: "superpowers@git+https://github.com/obra/superpowers.git"
+  "plugins": [],
+  // Local folders containing SKILL.md files may be listed here.
+  "skills": [],
+  // This overrides the default Exa provider. Set TAVILY_API_KEY in client.env.
+  "websearch": {
+    "provider": "tavily"
+  }
+}

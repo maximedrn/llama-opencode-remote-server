@@ -35,12 +35,17 @@ import type {
 } from "@app/cli/operation/stack/stack.interface.ts";
 import { StackService } from "@app/cli/operation/stack/stack.service.ts";
 import type { InitInput } from "@app/cli/operation/stack/stack.types.ts";
-import { Backends } from "@app/cli/resource/backend/backend.constants.ts";
+import {
+  Backends,
+  isNativeBackend,
+} from "@app/cli/resource/backend/backend.constants.ts";
 import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
 import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
 import { DockerService } from "@app/cli/resource/docker/docker.service.ts";
 import type { ComposeOptions } from "@app/cli/resource/docker/docker.types.ts";
 import type { ModelListing } from "@app/cli/resource/model/model.types.ts";
+import { Native } from "@app/cli/resource/native/native.constants.ts";
+import { NativeError } from "@app/cli/resource/native/native.types.ts";
 import type { Prompt } from "@effect/cli";
 import { Command } from "@effect/cli";
 import { Console, Effect, Option } from "effect";
@@ -78,9 +83,34 @@ const makeLifecycleCommand = <Name extends string>(
   Command.make(lifecycle.name, targetOptions, (config: StackTargetConfig) =>
     Effect.gen(function* () {
       const docker: DockerService = yield* DockerService;
-      yield* docker.assertAvailable;
-      yield* withTarget(config, (backend: Backend, options: ComposeOptions) =>
-        docker.compose(backend, lifecycle.args, options),
+      const stack: StackService = yield* StackService;
+      yield* withTarget(
+        config,
+        (
+          backend: Backend,
+          options: ComposeOptions,
+        ): Effect.Effect<void, LifecycleError> => {
+          if (!isNativeBackend(backend)) {
+            return docker.assertAvailable.pipe(
+              Effect.andThen(docker.compose(backend, lifecycle.args, options)),
+            );
+          }
+          if (!options.local) {
+            return new NativeError({ reason: Native.messages.nativeOnly });
+          }
+          switch (lifecycle.name) {
+            case "pull":
+              return new NativeError({ reason: Native.messages.noPull });
+            case "up":
+              return stack.native.start(backend);
+            case "down":
+              return stack.native.stop;
+            default:
+              return stack.native.stop.pipe(
+                Effect.andThen(stack.native.start(backend)),
+              );
+          }
+        },
       );
     }),
   ).pipe(Command.withDescription(lifecycle.description));
@@ -96,16 +126,26 @@ const statusCommand: Command.Command<
   (config: StatusConfig) =>
     Effect.gen(function* () {
       const docker: DockerService = yield* DockerService;
-      yield* docker.assertAvailable;
-      yield* withTarget(config, (backend: Backend, options: ComposeOptions) =>
-        docker
-          .composeCaptured(backend, Docker.verbs.psJson, options)
-          .pipe(
-            Effect.flatMap(
-              (output: string): Effect.Effect<void> =>
-                config.json ? Console.log(output.trim()) : reportStatus(output),
-            ),
-          ),
+      const stack: StackService = yield* StackService;
+      yield* withTarget(
+        config,
+        (
+          backend: Backend,
+          options: ComposeOptions,
+        ): Effect.Effect<void, LifecycleError> =>
+          isNativeBackend(backend)
+            ? stack.native.status(config.json)
+            : docker.assertAvailable.pipe(
+                Effect.andThen(
+                  docker.composeCaptured(backend, Docker.verbs.psJson, options),
+                ),
+                Effect.flatMap(
+                  (output: string): Effect.Effect<void> =>
+                    config.json
+                      ? Console.log(output.trim())
+                      : reportStatus(output),
+                ),
+              ),
       );
     }),
 ).pipe(Command.withDescription(Commands.descriptions.status));
@@ -121,9 +161,28 @@ const logsCommand: Command.Command<
   (config: LogsConfig) =>
     Effect.gen(function* () {
       const docker: DockerService = yield* DockerService;
-      yield* docker.assertAvailable;
-      yield* withTarget(config, (backend: Backend, options: ComposeOptions) =>
-        docker.compose(backend, Docker.verbs.logs(config.service), options),
+      const stack: StackService = yield* StackService;
+      yield* withTarget(
+        config,
+        (
+          backend: Backend,
+          options: ComposeOptions,
+        ): Effect.Effect<void, LifecycleError> =>
+          isNativeBackend(backend)
+            ? config.service === Docker.services.llama
+              ? stack.native.logs
+              : new NativeError({
+                  reason: "Native backend only provides llama logs.",
+                })
+            : docker.assertAvailable.pipe(
+                Effect.andThen(
+                  docker.compose(
+                    backend,
+                    Docker.verbs.logs(config.service),
+                    options,
+                  ),
+                ),
+              ),
       );
     }),
 ).pipe(Command.withDescription(Commands.descriptions.logs));

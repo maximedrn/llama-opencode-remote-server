@@ -6,6 +6,7 @@ import {
   type UninstallError,
 } from "@app/cli/operation/lifecycle/lifecycle.types.ts";
 import type { StackDependencies } from "@app/cli/operation/stack/stack.interface.ts";
+import { isNativeBackend } from "@app/cli/resource/backend/backend.constants.ts";
 import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
 import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
 import type {
@@ -85,6 +86,12 @@ const rotateApiKey = (
   options: ComposeOptions,
 ): Effect.Effect<void, RotateKeyError> =>
   Effect.gen(function* () {
+    if (isNativeBackend(backend)) {
+      yield* dependencies.native.stop;
+      yield* dependencies.secrets.rotateApiKey;
+      yield* dependencies.native.start(backend);
+      return yield* Console.log(Lifecycle.messages.rotatedClients);
+    }
     const key: Redacted.Redacted<string> =
       yield* dependencies.secrets.rotateApiKey;
     yield* Console.log(Lifecycle.messages.rotated);
@@ -126,11 +133,15 @@ const uninstall = (
   options: ComposeOptions,
 ): Effect.Effect<void, UninstallError, Prompt.Prompt.Environment> =>
   Effect.gen(function* () {
-    yield* dependencies.docker.assertAvailable;
-    yield* dependencies.docker.compose(backend, Docker.verbs.down, {
-      ...options,
-      local: false,
-    });
+    if (isNativeBackend(backend)) {
+      yield* dependencies.native.stop;
+    } else {
+      yield* dependencies.docker.assertAvailable;
+      yield* dependencies.docker.compose(backend, Docker.verbs.down, {
+        ...options,
+        local: false,
+      });
+    }
     yield* Console.log(Lifecycle.messages.stopped);
     const purge: boolean = yield* Prompt.run(
       Prompt.confirm({

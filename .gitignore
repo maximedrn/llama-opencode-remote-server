@@ -2,6 +2,9 @@
 .env
 client.env
 
+# Machine-specific OpenCode configuration.
+/.opencode/opencode.jsonc
+
 # Secrets.
 secrets/*
 !secrets/.gitkeep
@@ -11,6 +14,9 @@ node_modules/
 
 # Compiled heartbeat binary.
 dist/
+
+# Native runtime state and logs.
+.runtime/
 
 # Log files.
 *.log

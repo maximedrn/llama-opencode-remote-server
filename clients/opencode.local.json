@@ -1,11 +1,18 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "model": "custom/default",
-  "plugin": ["oh-my-openagent"],
-  "provider": {
+  "permissions": [
+    { "action": "webfetch", "effect": "allow", "resource": "*" },
+    { "action": "websearch", "effect": "allow", "resource": "*" }
+  ],
+  "providers": {
     "custom": {
+      "env": ["LLAMA_API_KEY"],
       "models": {
         "default": {
+          "capabilities": {
+            "tools": true
+          },
           "limit": {
             "context": 262144,
             "output": 131072
@@ -14,13 +21,16 @@
         }
       },
       "name": "llama.cpp",
-      "npm": "@ai-sdk/openai-compatible",
-      "options": {
-        "apiKey": "{env:LLAMA_API_KEY}",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
         "baseURL": "{env:LLAMA_BASE_URL}/v1",
         "chunkTimeout": 36000000,
+        "headerTimeout": 36000000,
         "timeout": 36000000
       }
     }
+  },
+  "websearch": {
+    "provider": "exa"
   }
 }

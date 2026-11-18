@@ -5,7 +5,6 @@ import {
   type ClientEnv,
   EnvNotInitializedError,
   type EnvReadError,
-  type EnvRecord,
   type ModelLocation,
   type StackEnv,
 } from "@app/cli/resource/env/env.types.ts";
@@ -17,7 +16,6 @@ import {
 import { FileSystem } from "@effect/platform";
 import type { PlatformError } from "@effect/platform/Error";
 import { Effect, Option } from "effect";
-import { stringify } from "envfile";
 
 class EnvService extends Effect.Service<EnvService>()("EnvService", {
   effect: Effect.gen(function* () {
@@ -48,15 +46,11 @@ class EnvService extends Effect.Service<EnvService>()("EnvService", {
       ),
     );
 
-    const write = (values: EnvRecord): Effect.Effect<void, PlatformError> =>
-      fileSystem.writeFileString(EnvFile.path, stringify(values));
-
     const api: EnvApi = {
       read,
       readClient,
       readRaw: readRawFile(fileSystem),
       requireModel,
-      write,
     };
     return api;
   }),

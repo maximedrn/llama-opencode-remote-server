@@ -5,11 +5,17 @@ const HardwareBackends = {
   nvidia: "nvidia",
 } as const;
 
+/** Native llama.cpp Windows backends, independent of Docker Compose. */
+const NativeBackends = {
+  hip: "hip",
+  vulkan: "vulkan",
+} as const;
+
 /** Hardware backends and every host constraint attached to them. */
 const Backends = {
   fallback: HardwareBackends.cpu,
   kernelVersionFile: "/proc/version",
-  list: Object.values(HardwareBackends),
+  list: [...Object.values(HardwareBackends), ...Object.values(NativeBackends)],
   messages: {
     amdNeedsLinux:
       "AMD ROCm containers require a Linux Docker host. Use --backend " +
@@ -19,12 +25,12 @@ const Backends = {
       `Use a native Linux host or --backend ${HardwareBackends.cpu}.`,
     missingRocmDevice: (device: string): string =>
       `Missing ${device}; ROCm device access is not ready on the Linux host.`,
+    nativeNeedsWindows: "Native Vulkan/HIP requires Windows 11 and --local.",
     nvidiaNotOnMacos:
       "NVIDIA CUDA containers are not available on macOS. " +
       `Use --backend ${HardwareBackends.cpu}.`,
     unsupported: (backend: string): string =>
-      `Unsupported backend: ${backend}. Use ${HardwareBackends.cpu}, ` +
-      `${HardwareBackends.nvidia}, or ${HardwareBackends.amd}.`,
+      `Unsupported backend: ${backend}. Use ${Backends.list.join(", ")}.`,
   },
   /** Device nodes ROCm needs from the host. */
   rocmDevices: ["/dev/kfd", "/dev/dri"],
@@ -32,4 +38,8 @@ const Backends = {
   wslMarker: "microsoft",
 } as const;
 
-export { Backends, HardwareBackends };
+/** Native backends bypass the Docker Compose lifecycle entirely. */
+const isNativeBackend = (backend: string): backend is "hip" | "vulkan" =>
+  backend === NativeBackends.hip || backend === NativeBackends.vulkan;
+
+export { Backends, HardwareBackends, isNativeBackend, NativeBackends };

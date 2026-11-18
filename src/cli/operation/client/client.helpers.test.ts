@@ -42,7 +42,6 @@ const clientOnlyEnv = (baseUrl: string): EnvApi => ({
   requireModel: Effect.fail(
     new EnvNotInitializedError({ missing: "MODEL_DIRECTORY, MODEL_FILE" }),
   ) as Effect.Effect<ModelLocation, EnvNotInitializedError>,
-  write: (): Effect.Effect<void> => Effect.void,
 });
 
 const run = <A, E>(

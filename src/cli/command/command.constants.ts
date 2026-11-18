@@ -8,11 +8,11 @@ const Commands = {
       "Compose file defining llama.cpp, replacing the shipped backend one; " +
       "defaults to COMPOSE_OVERRIDE_FILE",
     doctor: "Check every piece the stack needs, with a fix for each failure",
-    force: "Overwrite an existing .env and secrets without asking",
+    force: "Overwrite existing secrets without asking",
     health: "One-token completion proving the server answers and the key works",
     hfInclude: "Glob selecting the files to download from the repository",
     hfRepo: "Hugging Face repository to download the model from",
-    init: "Resolve the model source, then write .env and secrets",
+    init: "Prepare the model and secrets using the settings in .env",
     json: "Print machine-readable JSON",
     keepalive:
       "Put the keep-alive front between the proxy and llama.cpp; defaults to " +

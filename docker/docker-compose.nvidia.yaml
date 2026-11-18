@@ -58,7 +58,7 @@ services:
       - backend
     command:
       - --device
-      - ${NVIDIA_DEVICE:-CUDA0}
+      - ${DEVICE:-CUDA0}
       - --split-mode
       - none
       - --fit

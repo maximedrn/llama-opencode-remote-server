@@ -33,6 +33,7 @@ import type { ComposeOptions } from "@app/cli/resource/docker/docker.types.ts";
 import { EnvService } from "@app/cli/resource/env/env.service.ts";
 import type { EnvReadError } from "@app/cli/resource/env/env.types.ts";
 import { ModelService } from "@app/cli/resource/model/model.service.ts";
+import { NativeService } from "@app/cli/resource/native/native.service.ts";
 import { SecretService } from "@app/cli/resource/secret/secret.service.ts";
 import { HostService } from "@app/cli/system/host/host.service.ts";
 import type { Prompt } from "@effect/cli";
@@ -47,6 +48,7 @@ class StackService extends Effect.Service<StackService>()("StackService", {
     DockerService.Default,
     EnvService.Default,
     ModelService.Default,
+    NativeService.Default,
     SecretService.Default,
   ],
   effect: Effect.gen(function* () {
@@ -58,6 +60,7 @@ class StackService extends Effect.Service<StackService>()("StackService", {
       host: yield* HostService,
       httpClient: yield* HttpClient.HttpClient,
       models: yield* ModelService,
+      native: yield* NativeService,
       path: yield* Path.Path,
       secrets: yield* SecretService,
     };
@@ -81,6 +84,7 @@ class StackService extends Effect.Service<StackService>()("StackService", {
       ): Effect.Effect<void, InitError, Prompt.Prompt.Environment> =>
         initialize(dependencies, input),
       models: listModels(dependencies),
+      native: dependencies.native,
       preflight: (
         backend: Backend,
         options: ComposeOptions,
