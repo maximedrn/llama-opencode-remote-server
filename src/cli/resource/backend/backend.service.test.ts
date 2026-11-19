@@ -91,6 +91,24 @@ describe("assertHost", () => {
     expect(Either.isLeft(result)).toBe(true);
   });
 
+  test("vulkan is accepted on Windows", async () => {
+    const result: Either.Either<void, unknown> = await evaluate(
+      "win32",
+      [],
+      (backends: BackendApi) => backends.assertHost("vulkan"),
+    );
+    expect(Either.isRight(result)).toBe(true);
+  });
+
+  test("hip is rejected on Linux", async () => {
+    const result: Either.Either<void, unknown> = await evaluate(
+      "linux",
+      [],
+      (backends: BackendApi) => backends.assertHost("hip"),
+    );
+    expect(Either.isLeft(result)).toBe(true);
+  });
+
   test("nvidia is accepted on linux", async () => {
     const result: Either.Either<void, unknown> = await evaluate(
       "linux",

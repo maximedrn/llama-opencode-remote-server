@@ -6,6 +6,7 @@ import type {
   DoctorResult,
 } from "@app/cli/operation/doctor/doctor.types.ts";
 import type { StackDependencies } from "@app/cli/operation/stack/stack.interface.ts";
+import { isNativeBackend } from "@app/cli/resource/backend/backend.constants.ts";
 import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
 import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
 import type { ComposeOptions } from "@app/cli/resource/docker/docker.types.ts";
@@ -29,7 +30,7 @@ const modelCheck = (
   });
 
 /** The checks a server host has, and a client host has no business running. */
-const hostChecks = (
+const dockerHostChecks = (
   dependencies: StackDependencies,
   backend: Backend,
   options: ComposeOptions,
@@ -69,6 +70,22 @@ const hostChecks = (
     ),
   },
 ];
+
+/** Native checks use Effect services rather than the Docker daemon. */
+const hostChecks = (
+  dependencies: StackDependencies,
+  backend: Backend,
+  options: ComposeOptions,
+): readonly DoctorCheck[] =>
+  isNativeBackend(backend)
+    ? [
+        {
+          fix: Doctor.fixes.native,
+          label: Doctor.checks.native,
+          run: dependencies.native.preflight(backend, options.local === true),
+        },
+      ]
+    : dockerHostChecks(dependencies, backend, options);
 
 const describeCause = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);

@@ -50,6 +50,9 @@ words:
   - Qwik
   - recognised
   - rocm
+  - taskkill
+  - tasklist
+  - tavily
   - scgi
   - seccomp
   - Somes
@@ -59,3 +62,5 @@ words:
   - ultrabrain
   - unsloth
   - uwsgi
+  - webfetch
+  - websearch

@@ -87,20 +87,17 @@ const targetOptions: TargetOptions = {
 };
 
 const initOptions: {
-  readonly backend: Options.Options<Backend>;
+  readonly backend: Options.Options<Option.Option<Backend>>;
   readonly force: Options.Options<boolean>;
   readonly include: Options.Options<Option.Option<string>>;
-  readonly keepalive: Options.Options<boolean>;
+  readonly keepalive: Options.Options<Option.Option<boolean>>;
   readonly local: Options.Options<boolean>;
   readonly modelDirectory: Options.Options<Option.Option<string>>;
   readonly modelFile: Options.Options<Option.Option<string>>;
   readonly modelUrl: Options.Options<Option.Option<string>>;
   readonly repository: Options.Options<Option.Option<string>>;
 } = {
-  backend: Options.choice(Commands.options.backend, Backends.list).pipe(
-    Options.withDefault<Backend>(Backends.fallback),
-    Options.withDescription(Commands.descriptions.backend),
-  ),
+  backend: targetOptions.backend,
   force: Options.boolean(Commands.options.force).pipe(
     Options.withDescription(Commands.descriptions.force),
   ),
@@ -108,9 +105,7 @@ const initOptions: {
     Options.withDescription(Commands.descriptions.hfInclude),
     Options.optional,
   ),
-  keepalive: Options.boolean(Commands.options.keepalive).pipe(
-    Options.withDescription(Commands.descriptions.keepalive),
-  ),
+  keepalive: keepaliveOption,
   local: localOption,
   modelDirectory: Options.text(Commands.options.modelDirectory).pipe(
     Options.withDescription(Commands.descriptions.modelDir),

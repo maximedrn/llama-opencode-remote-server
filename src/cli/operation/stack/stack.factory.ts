@@ -15,7 +15,7 @@ import type {
 import type { PlatformError } from "@effect/platform/Error";
 import { Effect, Option } from "effect";
 
-/** `--backend` wins, then the backend remembered in `.env`, then cpu. */
+/** `--backend` wins, then the backend configured in `.env`, then cpu. */
 const resolveBackend = (
   dependencies: StackDependencies,
   requested: Option.Option<Backend>,
@@ -34,7 +34,7 @@ const resolveBackend = (
       Effect.succeed(backend),
   }).pipe(Effect.tap(dependencies.backends.assertHost));
 
-/** Command flags win over what `init` remembered in `.env`. */
+/** Command flags override `.env` settings for this invocation. */
 const makeComposeOptions = (
   dependencies: StackDependencies,
   local: boolean,

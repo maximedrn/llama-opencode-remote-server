@@ -1,5 +1,9 @@
 import { servedModels } from "@app/cli/operation/client/client.helpers.ts";
 import { Stack } from "@app/cli/operation/stack/stack.constants.ts";
+import {
+  makeComposeOptions,
+  resolveBackend,
+} from "@app/cli/operation/stack/stack.factory.ts";
 import type {
   InitError,
   ListModelsError,
@@ -7,13 +11,18 @@ import type {
   StackDependencies,
 } from "@app/cli/operation/stack/stack.interface.ts";
 import type { InitInput } from "@app/cli/operation/stack/stack.types.ts";
-import { InitAbortedError } from "@app/cli/operation/stack/stack.types.ts";
-import { HardwareBackends } from "@app/cli/resource/backend/backend.constants.ts";
+import {
+  InitAbortedError,
+  InitModelMismatchError,
+} from "@app/cli/operation/stack/stack.types.ts";
+import {
+  HardwareBackends,
+  isNativeBackend,
+} from "@app/cli/resource/backend/backend.constants.ts";
 import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
+import { IncompatibleHostError } from "@app/cli/resource/backend/backend.types.ts";
 import { Docker } from "@app/cli/resource/docker/docker.constants.ts";
 import type { ComposeOptions } from "@app/cli/resource/docker/docker.types.ts";
-import { EnvFile } from "@app/cli/resource/env/env.constants.ts";
-import { makeStackEnv } from "@app/cli/resource/env/env.factory.ts";
 import type { ModelLocation } from "@app/cli/resource/env/env.types.ts";
 import { makeModelSource } from "@app/cli/resource/model/model.factory.ts";
 import { listLocalModels } from "@app/cli/resource/model/model.helpers.ts";
@@ -23,7 +32,6 @@ import type {
   ResolvedModel,
 } from "@app/cli/resource/model/model.types.ts";
 import { ModelFileMissingError } from "@app/cli/resource/model/model.types.ts";
-import { defaultModelDirectory } from "@app/cli/resource/model/model.utils.ts";
 import { Secrets } from "@app/cli/resource/secret/secret.constants.ts";
 import { EmptyTunnelTokenError } from "@app/cli/resource/secret/secret.types.ts";
 import { Host } from "@app/cli/system/host/host.constants.ts";
@@ -90,7 +98,6 @@ const overwritePaths = (
   ...(local
     ? []
     : [dependencies.path.join(Secrets.directory, Secrets.files.tunnelToken)]),
-  EnvFile.path,
 ];
 
 /**
@@ -125,12 +132,13 @@ const confirmOverwrite = (
 
 const reportInit = (
   dependencies: StackDependencies,
-  input: InitInput,
+  backend: Backend,
+  keepalive: boolean,
   model: ResolvedModel,
   apiKey: Redacted.Redacted<string>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    yield* Console.log(Stack.messages.initialized(input.backend));
+    yield* Console.log(Stack.messages.initialized(backend));
     yield* Console.log(
       Stack.messages.modelPath(
         dependencies.path.join(model.directory, model.file),
@@ -140,8 +148,51 @@ const reportInit = (
     yield* Console.log(
       Stack.messages.fingerprint(dependencies.secrets.fingerprint(apiKey)),
     );
-    if (input.keepalive) yield* Console.log(Stack.messages.keepaliveMode);
+    if (keepalive) yield* Console.log(Stack.messages.keepaliveMode);
     yield* Console.log(Stack.messages.nextStep);
+  });
+
+const resolveInitModel = (
+  dependencies: StackDependencies,
+  input: InitInput,
+  location: ModelLocation,
+): Effect.Effect<ResolvedModel, InitError> =>
+  Effect.gen(function* () {
+    const configured: string = dependencies.path.resolve(
+      location.directory,
+      location.file,
+    );
+    const modelFile: Option.Option<string> =
+      Option.isNone(input.modelUrl) && Option.isNone(input.repository)
+        ? Option.orElse(
+            input.modelFile,
+            (): Option.Option<string> => Option.some(configured),
+          )
+        : input.modelFile;
+    const source: ModelSource = yield* makeModelSource({
+      include: Option.orElse(
+        input.include,
+        (): Option.Option<string> => Option.some(location.file),
+      ),
+      modelFile,
+      modelUrl: input.modelUrl,
+      repository: input.repository,
+    });
+    const model: ResolvedModel = yield* dependencies.models.resolve({
+      directory: Option.getOrElse(
+        input.modelDirectory,
+        (): string => location.directory,
+      ),
+      source,
+    });
+    const resolved: string = dependencies.path.resolve(
+      model.directory,
+      model.file,
+    );
+    if (dependencies.path.relative(configured, resolved) !== "") {
+      return yield* new InitModelMismatchError({ configured, resolved });
+    }
+    return model;
   });
 
 const initialize = (
@@ -149,35 +200,37 @@ const initialize = (
   input: InitInput,
 ): Effect.Effect<void, InitError, Prompt.Prompt.Environment> =>
   Effect.gen(function* () {
-    yield* dependencies.backends.assertHost(input.backend);
+    const location: ModelLocation = yield* dependencies.env.requireModel;
+    const backend: Backend = yield* resolveBackend(dependencies, input.backend);
+    if (isNativeBackend(backend) && !input.local) {
+      return yield* new IncompatibleHostError({
+        reason:
+          "Native Vulkan/HIP requires --local; remote deployment uses Docker on Linux.",
+      });
+    }
+    const options: ComposeOptions = yield* makeComposeOptions(
+      dependencies,
+      input.local,
+      input.keepalive,
+      Option.none(),
+    );
     yield* confirmOverwrite(dependencies, input);
-    const home: string = yield* dependencies.host.homeDirectory;
-    const source: ModelSource = yield* makeModelSource({
-      include: input.include,
-      modelFile: input.modelFile,
-      modelUrl: input.modelUrl,
-      repository: input.repository,
-    });
-    const model: ResolvedModel = yield* dependencies.models.resolve({
-      directory: input.modelDirectory.pipe(
-        Option.getOrElse((): string => defaultModelDirectory(home)),
-      ),
-      source,
-    });
+    const model: ResolvedModel = yield* resolveInitModel(
+      dependencies,
+      input,
+      location,
+    );
     const apiKey: Redacted.Redacted<string> =
       yield* dependencies.secrets.generateApiKey;
     yield* dependencies.secrets.write(Secrets.files.apiKey, apiKey);
     yield* writeTunnelToken(dependencies, input.local);
-    yield* dependencies.env.write(
-      makeStackEnv({
-        backend: input.backend,
-        existing: yield* dependencies.env.readRaw,
-        keepalive: input.keepalive,
-        model,
-        threads: dependencies.host.threads,
-      }),
+    yield* reportInit(
+      dependencies,
+      backend,
+      options.keepalive === true,
+      model,
+      apiKey,
     );
-    yield* reportInit(dependencies, input, model, apiKey);
   });
 
 const reportPlatformHints = (
@@ -206,6 +259,12 @@ const preflight = (
   options: ComposeOptions,
 ): Effect.Effect<void, PreflightError> =>
   Effect.gen(function* () {
+    if (isNativeBackend(backend)) {
+      return yield* dependencies.native.preflight(
+        backend,
+        options.local === true,
+      );
+    }
     const location: ModelLocation = yield* dependencies.env.requireModel;
     const modelPath: string = dependencies.path.resolve(
       location.directory,

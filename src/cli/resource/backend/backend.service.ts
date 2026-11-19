@@ -1,6 +1,7 @@
 import {
   Backends,
   HardwareBackends,
+  isNativeBackend,
 } from "@app/cli/resource/backend/backend.constants.ts";
 import type { BackendApi } from "@app/cli/resource/backend/backend.interface.ts";
 import {
@@ -57,6 +58,11 @@ class BackendService extends Effect.Service<BackendService>()(
       const assertHost = (
         backend: Backend,
       ): Effect.Effect<void, IncompatibleHostError> => {
+        if (isNativeBackend(backend)) {
+          return host.isPlatform(Host.platforms.windows)
+            ? Effect.void
+            : reject(Backends.messages.nativeNeedsWindows);
+        }
         if (
           backend === HardwareBackends.nvidia &&
           host.isPlatform(Host.platforms.macos)

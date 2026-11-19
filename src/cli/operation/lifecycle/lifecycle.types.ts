@@ -1,6 +1,7 @@
 import { Lifecycle } from "@app/cli/operation/lifecycle/lifecycle.constants.ts";
 import type { Backend } from "@app/cli/resource/backend/backend.types.ts";
 import type { DockerUnavailableError } from "@app/cli/resource/docker/docker.types.ts";
+import type { NativeLifecycleError } from "@app/cli/resource/native/native.types.ts";
 import type { CommandFailedError } from "@app/cli/system/process/process.types.ts";
 import type { PlatformError } from "@effect/platform/Error";
 import type { QuitException } from "@effect/platform/Terminal";
@@ -17,9 +18,14 @@ class LlamaNotHealthyError extends Data.TaggedError("LlamaNotHealthyError")<{
 
 type HealthError = CommandFailedError | PlatformError;
 
-type RotateKeyError = CommandFailedError | LlamaNotHealthyError | PlatformError;
+type RotateKeyError =
+  | CommandFailedError
+  | LlamaNotHealthyError
+  | NativeLifecycleError
+  | PlatformError;
 
 type UninstallError =
+  | NativeLifecycleError
   | CommandFailedError
   | DockerUnavailableError
   | PlatformError

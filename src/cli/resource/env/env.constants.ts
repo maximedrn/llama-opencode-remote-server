@@ -20,59 +20,44 @@ const ClientFile = {
   path: projectPath("clients/client.env"),
 } as const;
 
-/** Everything written to, or read from, the Compose `.env` file. */
+/** Settings for both the Compose stack and the native server. */
 const EnvFile = {
-  /** Written for the flags `init` remembers; anything blank counts as off. */
-  enabled: "true",
   keys: {
     backend: "BACKEND",
+    batchSize: "BATCH_SIZE",
     batchThreads: "THREADS_BATCH",
+    cacheK: "CACHE_TYPE_K",
+    cacheV: "CACHE_TYPE_V",
     /**
      * Extra Compose file layered after the backend one. Not named
      * `COMPOSE_FILE`: Docker Compose reads that variable from `.env` itself and
      * would replace the whole file set with it.
      */
     composeFile: "COMPOSE_OVERRIDE_FILE",
+    context: "CTX_SIZE",
+    device: "DEVICE",
+    draftTokens: "SPEC_DRAFT_N_MAX",
+    fitTarget: "FIT_TARGET",
+    flashAttention: "FLASH_ATTN",
     generationThreads: "THREADS",
-    /** Remembers `init --keepalive`, so later commands layer the same files. */
+    /** Enables the heartbeat front for Compose commands. */
     keepalive: "KEEPALIVE",
-    /**
-     * Single llama.cpp image for every backend: each Compose file falls back to
-     * the tag built for its accelerator, so this stays empty unless a specific
-     * build has to be pinned.
-     */
-    llamaImage: "LLAMA_IMAGE",
+    loadMode: "LOAD_MODE",
     localPort: "LOCAL_PORT",
     modelAlias: "LLAMA_ALIAS",
     modelDirectory: "MODEL_DIRECTORY",
     modelFile: "MODEL_FILE",
+    nativeServer: "NATIVE_SERVER_PATH",
+    ubatchSize: "UBATCH_SIZE",
   },
   messages: {
     notInitialized: (missing: string): string =>
-      `Run \`init\` first: .env is missing ${missing}.`,
+      `Set ${missing} in .env. If the file is missing, copy .env.example to .env first.`,
     readFailed: (file: string, reason: string): string =>
       `Could not read ${file}: ${reason}`,
   },
+  nativeContext: "32768",
   path: projectPath(".env"),
-  /** llama.cpp runtime profile written on `init`; tune it in `.env` afterwards. */
-  /** Loopback port published by `--local`; 8080 is often already taken. */
-  runtime: [
-    ["LOCAL_PORT", "8080"],
-    ["AMD_DEVICE", "ROCm0"],
-    ["BATCH_SIZE", "2048"],
-    ["CACHE_TYPE_K", "q8_0"],
-    ["CACHE_TYPE_V", "q8_0"],
-    ["COMPOSE_OVERRIDE_FILE", ""],
-    ["CTX_SIZE", "262144"],
-    ["FIT_TARGET", "768"],
-    ["FLASH_ATTN", "auto"],
-    ["LLAMA_IMAGE", ""],
-    ["LOAD_MODE", "mmap+mlock"],
-    ["NVIDIA_DEVICE", "CUDA0"],
-    ["SPEC_DRAFT_N_MAX", "3"],
-    ["SPEC_DRAFT_P_MAX", "0.7"],
-    ["UBATCH_SIZE", "512"],
-  ],
 } as const;
 
 export { ClientFile, EnvFile };

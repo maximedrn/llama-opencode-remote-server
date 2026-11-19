@@ -54,7 +54,7 @@ services:
       - backend
     command:
       - --device
-      - ${AMD_DEVICE:-ROCm0}
+      - ${DEVICE:-ROCm0}
       - --split-mode
       - none
       - --fit

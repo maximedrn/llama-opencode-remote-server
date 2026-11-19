@@ -45,7 +45,13 @@ const readFile = <A>(
     ),
   );
 
-/** Everything `.env` holds today, so `init` can keep what it does not own. */
+const readRawValues = (
+  fileSystem: FileSystem.FileSystem,
+  path: string,
+): Effect.Effect<EnvRecord, PlatformError> =>
+  fileSystem.readFileString(path).pipe(Effect.map(parse));
+
+/** Reads all `.env` settings, including the native server's model parameters. */
 const readRawFile = (
   fileSystem: FileSystem.FileSystem,
 ): Effect.Effect<EnvRecord, PlatformError> =>
@@ -54,13 +60,7 @@ const readRawFile = (
     .pipe(
       Effect.flatMap(
         (exists: boolean): Effect.Effect<EnvRecord, PlatformError> =>
-          exists
-            ? fileSystem
-                .readFileString(EnvFile.path)
-                .pipe(
-                  Effect.map((content: string): EnvRecord => parse(content)),
-                )
-            : Effect.succeed({}),
+          exists ? readRawValues(fileSystem, EnvFile.path) : Effect.succeed({}),
       ),
     );
 

@@ -8,6 +8,7 @@ const Doctor = {
     docker: "Docker daemon",
     host: "Host compatibility",
     model: "Model file",
+    native: "Native llama.cpp",
     reachable: "Llama reachable",
     secrets: "Secrets",
   },
@@ -17,6 +18,8 @@ const Doctor = {
     docker: "Install Docker or start the daemon, then run doctor again.",
     host: `Pick a compatible backend: bun run stack init --backend ${Backends.fallback}`,
     model: "Run init again, or copy the model into MODEL_DIRECTORY.",
+    native:
+      "Check NATIVE_SERVER_PATH, CTX_SIZE, LOCAL_PORT, model and secret in .env.",
     reachable:
       "Start the stack (bun run stack up), then check clients/client.env.",
     secrets: "Run init again to recreate the secrets.",

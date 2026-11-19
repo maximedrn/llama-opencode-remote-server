@@ -1,6 +1,6 @@
 # Llama OpenCode Remote Server
 
-Cross-platform Docker stack for serving any GGUF model through llama.cpp.
+Cross-platform llama.cpp stack: Docker on Linux and native Vulkan/HIP on Windows.
 
 ## Table of contents
 
@@ -32,15 +32,18 @@ Cross-platform Docker stack for serving any GGUF model through llama.cpp.
 
 ## Compatibility
 
-| Backend     | Linux  | Windows     | macOS  |
-| ----------- | ------ | ----------- | ------ |
-| CPU         | ✅     | ✅          | ✅     |
-| NVIDIA CUDA | ✅     | ✅ via WSL2 | ❌     |
-| AMD ROCm    | ✅     | ❌          | ❌     |
+| Backend             | Linux   | Windows     | macOS  |
+| ------------------- | ------- | ----------- | ------ |
+| CPU                 | ✅     | ✅          | ✅     |
+| NVIDIA CUDA         | ✅     | ✅ via WSL2 | ❌     |
+| AMD ROCm (Docker)   | ✅     | ❌          | ❌     |
+| AMD Vulkan (native) | ❌     | ✅          | ❌     |
+| AMD HIP (native)    | ❌     | ✅          | ❌     |
 
 ## Prerequisites
 
-- [Docker](https://www.docker.com)
+- [Docker](https://www.docker.com) — required for Docker backends only
+- [llama.cpp Windows release](https://github.com/ggml-org/llama.cpp/releases) — native Vulkan/HIP only
 - [Bun](https://bun.sh/)
 - [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/) — remote only
 - [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/guides/cli) — only with `--hf-repository`
@@ -52,7 +55,7 @@ Cross-platform Docker stack for serving any GGUF model through llama.cpp.
 ```mermaid
 flowchart LR
     A["<strong>Client</strong><br/><i>OpenCode or OpenAI-compatible</i>"]
-    B["<strong>Llama-server</strong><br/><i>CPU / CUDA / ROCm</i>"]
+    B["<strong>Llama-server</strong><br/><i>Docker: CPU / CUDA / ROCm, native: Vulkan / HIP</i>"]
 
     A -->|"127.0.0.1:8080"| B
 ```
@@ -88,15 +91,18 @@ Copy the environment file:
 cp .env.example .env
 ```
 
-Choose one model source when running `stack init`:
+Edit `.env` to set `BACKEND`, `MODEL_DIRECTORY` (an absolute directory on the host), and `MODEL_FILE` (the GGUF path within that directory). `stack init` reads these settings and writes the secrets. `--force` allows replacing existing secrets.
 
-| Source       | Arguments                                                     |
-| ------------ | ------------------------------------------------------------- |
-| Local GGUF   | `--model-file [MODEL_FILE]`                                   |
-| Direct URL   | `--model-url [MODEL_URL] --model-directory [MODEL_DIRECTORY]` |
-| Hugging Face | `--hf-repository [REPOSITORY] --hf-include [GGUF_FILE]`       |
+Set `DEVICE` to select a GPU device explicitly. With `DEVICE` empty, AMD Docker and native HIP use `ROCm0`, NVIDIA Docker uses `CUDA0`, and native Vulkan uses `Vulkan0`.
 
-`--model-directory` defaults to `$HOME/.llama/models`.
+For a GGUF already in `MODEL_DIRECTORY`, run `stack init` with your deployment options. To download the configured GGUF, add one of these options:
+
+| Source       | Arguments                                              |
+| ------------ | ------------------------------------------------------ |
+| Direct URL   | `--model-url [MODEL_URL]`                               |
+| Hugging Face | `--hf-repository [REPOSITORY] --hf-include [GGUF_FILE]` |
+
+The resolved model must match `MODEL_DIRECTORY` and `MODEL_FILE` in `.env`.
 
 ## Local setup
 
@@ -105,11 +111,11 @@ Use local mode when the server only needs to be accessible from the host.
 ### 1. Initialize
 
 ```bash
-bun run stack init \
-    --local \
-    --backend [cpu|nvidia|amd] \
-    [MODEL_SOURCE]
+bun run stack init --local
 ```
+
+> [!IMPORTANT]
+> When using the `vulkan` or `hip` backend on Windows, you must set `NATIVE_SERVER_PATH` in `.env` to the absolute path of the corresponding `llama-server.exe` executable.
 
 ### 2. Check
 
@@ -142,11 +148,18 @@ The API key is stored in:
 secrets/.llama_api_key
 ```
 
-Start OpenCode:
+Start OpenCode from the repository root. In PowerShell:
+
+```powershell
+$env:OPENCODE_CONFIG = (Resolve-Path 'clients/opencode.local.json').Path
+bun --env-file=clients/client.env exec 'opencode --standalone'
+```
+
+In a POSIX shell:
 
 ```bash
-set -a; source clients/client.env; set +a
-OPENCODE_CONFIG="$PWD/clients/opencode.remote.json" opencode
+OPENCODE_CONFIG="$PWD/clients/opencode.local.json" \
+bun --env-file=clients/client.env exec 'opencode --standalone'
 ```
 
 ### 5. Test
@@ -161,7 +174,7 @@ Use remote mode to expose the server through Cloudflare.
 
 ### 1. Create the tunnel
 
-In Cloudflare: `Networking` → `Tunnels` → `Create a tunnel` → `Cloudflared`.  
+In Cloudflare: `Networking` → `Tunnels` → `Create a tunnel` → `Cloudflared`.
 Create the tunnel and copy only the value passed to `--token`.
 
 ### 2. Publish the hostname
@@ -179,9 +192,7 @@ Create the tunnel and copy only the value passed to `--token`.
 ### 3. Initialize
 
 ```bash
-bun run stack init \
-    --backend [cpu|nvidia|amd] \
-    [MODEL_SOURCE]
+bun run stack init
 ```
 
 The tunnel token is stored in:
@@ -204,7 +215,7 @@ bun run stack up
 
 ### 6. Create a service token
 
-In Cloudflare Zero Trust: `Access controls` → `Service credentials` → `Service Tokens` → `Create Service Token`.  
+In Cloudflare Zero Trust: `Access controls` → `Service credentials` → `Service Tokens` → `Create Service Token`.
 Generate the token and copy:
 
 - Client ID
@@ -240,11 +251,17 @@ The API key is stored in:
 secrets/.llama_api_key
 ```
 
-Start OpenCode:
+Start OpenCode v2 with the remote configuration. In PowerShell:
+
+```powershell
+$env:OPENCODE_CONFIG = (Resolve-Path 'clients/opencode.remote.json').Path
+bun --env-file=clients/client.env exec 'opencode --standalone'
+```
+
+In a POSIX shell:
 
 ```bash
-set -a; source clients/client.env; set +a
-OPENCODE_CONFIG="$PWD/clients/opencode.remote.json" opencode
+OPENCODE_CONFIG="$PWD/clients/opencode.remote.json" bun --env-file=clients/client.env exec 'opencode --standalone'
 ```
 
 ### 9. Test

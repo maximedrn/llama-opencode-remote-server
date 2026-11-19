@@ -7,6 +7,7 @@ import type {
 import type {
   InitAbortedError,
   InitInput,
+  InitModelMismatchError,
 } from "@app/cli/operation/stack/stack.types.ts";
 import type { BackendApi } from "@app/cli/resource/backend/backend.interface.ts";
 import type {
@@ -33,6 +34,8 @@ import type {
   ModelListing,
   ModelSourceError,
 } from "@app/cli/resource/model/model.types.ts";
+import type { NativeService } from "@app/cli/resource/native/native.service.ts";
+import type { NativeLifecycleError } from "@app/cli/resource/native/native.types.ts";
 import type { SecretApi } from "@app/cli/resource/secret/secret.interface.ts";
 import type {
   EmptyTunnelTokenError,
@@ -54,6 +57,7 @@ interface StackDependencies {
   readonly host: HostApi;
   readonly httpClient: HttpClient.HttpClient;
   readonly models: ModelApi;
+  readonly native: NativeService;
   readonly path: Path.Path;
   readonly secrets: SecretApi;
 }
@@ -65,15 +69,19 @@ type BackendResolutionError =
   | UnsupportedBackendError;
 
 type InitError =
+  | BackendResolutionError
   | EmptyTunnelTokenError
+  | EnvNotInitializedError
   | IncompatibleHostError
   | InitAbortedError
+  | InitModelMismatchError
   | ModelResolutionError
   | ModelSourceError
   | PlatformError
   | QuitException;
 
 type PreflightError =
+  | NativeLifecycleError
   | CommandFailedError
   | EnvNotInitializedError
   | EnvReadError
@@ -86,6 +94,7 @@ type ListModelsError = EnvNotInitializedError | SmokeTestError;
 
 /** Every failure a Compose-driving command can report. */
 type LifecycleError =
+  | NativeLifecycleError
   | BackendResolutionError
   | CommandFailedError
   | DockerUnavailableError
@@ -112,6 +121,8 @@ interface StackApi {
   ) => Effect.Effect<void, InitError, Prompt.Prompt.Environment>;
   /** Local `.gguf` files, or what the server serves on a client host. */
   readonly models: Effect.Effect<readonly ModelListing[], ListModelsError>;
+  /** Native Vulkan/HIP runtime: shares the same CLI lifecycle commands. */
+  readonly native: NativeService;
   readonly preflight: (
     backend: Backend,
     options: ComposeOptions,
